@@ -53,7 +53,7 @@ Module Functions
 Module Functions
 ---------------- 
 
-* < _Boolean_ >**isClosed** - When true connection to lircd is closed and no events will be received. When false object is connected to lircd and it will receive events.
+* < _Boolean_ >**isConnected** - When true there is a connection to the lircd and the object will receive events. When false object is not connected to lircd and it will not receive events.
 
 Module Events
 -------------
