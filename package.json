@@ -1,5 +1,5 @@
 { "name": "lirc_client",
-  "version": "0.9.0",
+  "version": "0.9.1",
   "author": "Michel Verbraak <info@1st-setup.nl>",
   "description": "An lirc_client object for nodejs",
   "main": "./index",

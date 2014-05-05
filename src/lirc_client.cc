@@ -254,7 +254,7 @@ class Lirc_client : public ObjectWrap {
 
 	HandleScope scope;
 
-	return scope.Close(Boolean::New(lc->closed));
+	return scope.Close(Boolean::New(!lc->closed));
     }
 
     private:
