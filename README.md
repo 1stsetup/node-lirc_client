@@ -42,6 +42,7 @@ Module Functions
 ** programName is required when no other lirc_client object is connected.
 ** programName and verbose will be ignored when another lirc_client object is allready connected.
 ** Will throw errors when something fails.
+** !! Currently the configFiles option is ignored so only the global lircrc (/etc/lirc/lircrc) and the personal lircrc (~/.lircrc) are used !!
 
 * **close**() - Closes connection to lircd for this object.
 
