@@ -17,6 +17,12 @@ static Persistent<FunctionTemplate> Lirc_client_constructor;
 static Persistent<String> emit_symbol;
 static Persistent<String> data_symbol;
 static Persistent<String> closed_symbol;
+static Persistent<String> isClosed_symbol;
+
+static int lircd_fd = -1;
+static int lircd_conn_count = 0;
+static Local<String> gProgramName;
+static Handle<Boolean> gVerbose;
 
 char *string2char(const Local<String> avalue) {
 
@@ -47,26 +53,35 @@ class Lirc_client : public ObjectWrap {
       data_symbol = NODE_PSYMBOL("data");
       closed_symbol = NODE_PSYMBOL("closed");
 
+      isClosed_symbol = NODE_PSYMBOL("isClosed");
+
       NODE_SET_PROTOTYPE_METHOD(Lirc_client_constructor, "close", Close);
+      NODE_SET_PROTOTYPE_METHOD(Lirc_client_constructor, "connect", Connect);
+
+      Lirc_client_constructor->PrototypeTemplate()->SetAccessor(isClosed_symbol, IsClosedGetter);
 
       target->Set(name, Lirc_client_constructor->GetFunction());
     }
 
-    void init(Local<String> programname, Handle<Boolean> verbose = v8::Boolean::New(false), Local<Array> configfiles = v8::Array::New()) {
+    void init(Local<String> programname, Handle<Boolean> verbose, Local<Array> configfiles) {
 
-	lircd_fd = -1;
+	closed = true;
 	start_r_poll = true;
 	read_watcher_ = NULL;
 	lirc_config_ = NULL;
 
-	char * writable = string2char(programname);
-	lircd_fd = lirc_init(writable, verbose->Value() == true ? 1 : 0);
-	delete[] writable;
+	if (lircd_fd == -1) {
+		char * writable = string2char(programname);
+		lircd_fd = lirc_init(writable, verbose->Value() == true ? 1 : 0);
+		delete[] writable;
+	}
 	
 	if (lircd_fd < 0) {
 		ThrowException(Exception::Error(String::New("Error on lirc_init.")));
 		return;
 	}
+
+	lircd_conn_count++;
 
 	if (lirc_readconfig(NULL, &lirc_config_, NULL) != 0) {
 		ThrowException(Exception::Error(String::New("Error on lirc_readconfig.")));
@@ -90,6 +105,8 @@ class Lirc_client : public ObjectWrap {
 		start_r_poll = false;
 	}
 
+	closed = false;
+
     }
 
     static void on_handle_close (uv_handle_t *handle) {
@@ -97,46 +114,90 @@ class Lirc_client : public ObjectWrap {
     }
 
     void close() {
+
+	if (closed) return;
+
 	uv_poll_stop(read_watcher_);
 	uv_close((uv_handle_t *)read_watcher_, on_handle_close);
 	Unref();
 	read_watcher_ = NULL;
-	lircd_fd = -1;
 	start_r_poll = true;
 	lirc_freeconfig(lirc_config_);
-	lirc_deinit();
+
+	lircd_conn_count--;
+	if (lircd_conn_count == 0) {
+		lirc_deinit();
+		lircd_fd = -1;
+	}
+	closed = true;
+    }
+
+    void connect() {
+
+	if (!closed) return;
+
+	init(gProgramName, gVerbose, v8::Array::New());
     }
 
   protected:
     static Handle<Value> New (const Arguments& args) {
 	HandleScope scope;
 
-	if (args.Length() < 1) {
-		return ThrowException(Exception::Error(String::New("Not enough arguments. Program name is minimally required.")));
+	if (args.Length() > 3) {
+		return ThrowException(Exception::TypeError(String::New("Only three arguments are allowed.")));
 	}
 
-	if (!args[0]->IsString()) {
-		return ThrowException(Exception::TypeError(String::New("First argument 'Programname' must be a string.")));
+	int prognameindex = -1;
+	int verboseindex = -1;
+	int configindex = -1;
+
+	for(int i=0; i < args.Length(); i++) {
+		if (args[i]->IsArray()) {
+			if (configindex != -1) {
+				return ThrowException(Exception::TypeError(String::New("Only one Array argument is allowed (config files).")));
+			}
+			configindex = i;
+		}
+		else if ((args[i]->IsString()) && (lircd_fd == -1)) {
+			if (prognameindex != -1) {
+				return ThrowException(Exception::TypeError(String::New("Only one string argument is allowed (progamname).")));
+			}
+			prognameindex = i;
+		}
+		else if (args[i]->IsBoolean()) {
+			if (verboseindex != -1) {
+				return ThrowException(Exception::TypeError(String::New("Only one boolean argument is allowed (verbose).")));
+			}
+			verboseindex = i;
+		}
 	}
 
-	if ((args.Length() > 1) && (!args[1]->IsBoolean())) {
-		return ThrowException(Exception::TypeError(String::New("Seconds argument 'verbode' must be a boolean.")));
+	if ((lircd_fd == -1) && (prognameindex == -1)) {
+		return ThrowException(Exception::Error(String::New("There is no lirc_client object with this.isClosed == false. So programname is required on new.")));
 	}
 
-	if ((args.Length() > 2) && (!args[2]->IsArray())) {
-		return ThrowException(Exception::TypeError(String::New("Third argument 'conigurationfiles' must be an array of strings.")));
+	if ((configindex > -1) && (configindex < verboseindex)) {
+		return ThrowException(Exception::TypeError(String::New("Order of arguments is wrong. verbose must be before config files.")));
+	}
+
+	if ((configindex > -1) && (configindex < prognameindex)) {
+		return ThrowException(Exception::TypeError(String::New("Order of arguments is wrong. program name must be before config files.")));
+	}
+
+	if ((verboseindex > -1) && (verboseindex < prognameindex)) {
+		return ThrowException(Exception::TypeError(String::New("Order of arguments is wrong. program name must be before verbose.")));
 	}
 
 	Lirc_client *lc = NULL;
-	if (args.Length() == 1) {
-		lc = new Lirc_client(args[0]->ToString());
+
+	if (prognameindex > -1) {
+		gProgramName = args[prognameindex]->ToString();
 	}
-	else if (args.Length() == 2) {
-		lc = new Lirc_client(args[0]->ToString(), args[1]->ToBoolean());
+	if ((verboseindex > -1) && (lircd_fd == -1)) {
+		gVerbose = args[verboseindex]->ToBoolean();
 	}
-	else if (args.Length() == 3) {
-		lc = new Lirc_client(args[0]->ToString(), args[1]->ToBoolean(), Local<Array>::Cast(args[2]));
-	}
+
+	lc = new Lirc_client(prognameindex > -1 ? args[prognameindex]->ToString() : String::New(""), verboseindex > -1 ? args[verboseindex]->ToBoolean() : Boolean::New(false), configindex > -1 ? Local<Array>::Cast(args[configindex]) : v8::Array::New());
 
 	if (lc != NULL) {
 		lc->Wrap(args.This());
@@ -162,28 +223,41 @@ class Lirc_client : public ObjectWrap {
       return Undefined();
     }
 
-    Lirc_client(Local<String> programname) : ObjectWrap() {
-	this->init(programname);
+    static Handle<Value> Connect (const Arguments& args) {
+      Lirc_client *lc = ObjectWrap::Unwrap<Lirc_client>(args.This());
+      HandleScope scope;
+
+      lc->connect();
+
+      return Undefined();
     }
 
-    Lirc_client(Local<String> programname, Local<Boolean> verbose) : ObjectWrap() {
-	this->init(programname, verbose);
-    }
-
-    Lirc_client(Local<String> programname, Local<Boolean> verbose, Local<Array> configfiles) : ObjectWrap() {
+    Lirc_client(Local<String> programname, Handle<Boolean> verbose, Local<Array> configfiles) : ObjectWrap() {
 	this->init(programname, verbose, configfiles);
     }
 
     ~Lirc_client() {
 	Emit.Dispose();
 	Emit.Clear();
+	close();
+    }
+
+    static Handle<Value> IsClosedGetter (Local<String> property,
+                                            const AccessorInfo& info) {
+	Lirc_client *lc = ObjectWrap::Unwrap<Lirc_client>(info.This());
+	assert(lc);
+	assert(property == isClosed_symbol);
+
+	HandleScope scope;
+
+	return scope.Close(Boolean::New(lc->closed));
     }
 
     private:
-	int lircd_fd;
 	bool start_r_poll;
 	uv_poll_t* read_watcher_;
 	struct lirc_config *lirc_config_;
+	bool closed;
 
 	static void io_event (uv_poll_t* req, int status, int revents) {
 		HandleScope scope;
