@@ -9,17 +9,17 @@ try {
 		console.log("Lirc daemon closed our connection.");
 	});
 
-	console.log(" Before close. client1.isClosed:",client1.isClosed);
+	console.log(" Before close. client1.isConnected:",client1.isConnected);
 
 	client1.close();
 
-	console.log(" After close. client1.isClosed:",client1.isClosed);
+	console.log(" After close. client1.isConnected:",client1.isConnected);
 
 	client1.connect();
 
-	console.log(" After connect. client1.isClosed:",client1.isClosed);
+	console.log(" After connect. client1.isConnected:",client1.isConnected);
 
-	client1.close();
+	client1.close();  // Remove this line to bypass next error.
 
 	// Next line will trigger an error because client1 is closed and we did not specify a programname
 	// When no other lirc_client object is open and we instantiate a new object we need to specify a programname

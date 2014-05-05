@@ -17,13 +17,15 @@ Example
 var lirc_client = require('lirc_client');
 
 try {
-	var client = new lirc_client.client("testje", true);
+	var client = new lirc_client.client("clienttest", true);
 	client.on("data", function(data) {
 		console.log("Received data from lirc:",data);
+		client.close();
 	});
 	client.on("closed", function() {
 		console.log("Lirc daemon closed our connection. We need to reconnect.");
 	});
+	console.log("client.isConnected:", client.isConnected);
 }
 catch (err) {
 	console.log("Error on new client:",err);
@@ -41,7 +43,7 @@ Module Functions
   * programName is required when no other lirc_client object is connected.
   * programName and verbose will be ignored when another lirc_client object is allready connected.
   * Will throw errors when something fails.
-  * !! Currently the configFiles option is ignored so only the global lircrc (/etc/lirc/lircrc) and the personal lircrc (~/.lircrc) are used !!
+  * **!! Currently the configFiles option is ignored so only the global lircrc (/etc/lirc/lircrc) and the personal lircrc (~/.lircrc) are used !!**
 
 * **close**() - Closes connection to lircd for this object.
 

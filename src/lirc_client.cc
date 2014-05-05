@@ -17,7 +17,7 @@ static Persistent<FunctionTemplate> Lirc_client_constructor;
 static Persistent<String> emit_symbol;
 static Persistent<String> data_symbol;
 static Persistent<String> closed_symbol;
-static Persistent<String> isClosed_symbol;
+static Persistent<String> isConnected_symbol;
 
 static int lircd_fd = -1;
 static int lircd_conn_count = 0;
@@ -53,12 +53,12 @@ class Lirc_client : public ObjectWrap {
       data_symbol = NODE_PSYMBOL("data");
       closed_symbol = NODE_PSYMBOL("closed");
 
-      isClosed_symbol = NODE_PSYMBOL("isClosed");
+      isConnected_symbol = NODE_PSYMBOL("isConnected");
 
       NODE_SET_PROTOTYPE_METHOD(Lirc_client_constructor, "close", Close);
       NODE_SET_PROTOTYPE_METHOD(Lirc_client_constructor, "connect", Connect);
 
-      Lirc_client_constructor->PrototypeTemplate()->SetAccessor(isClosed_symbol, IsClosedGetter);
+      Lirc_client_constructor->PrototypeTemplate()->SetAccessor(isConnected_symbol, IsConnectedGetter);
 
       target->Set(name, Lirc_client_constructor->GetFunction());
     }
@@ -113,13 +113,17 @@ class Lirc_client : public ObjectWrap {
 	delete handle;
     }
 
-    void close() {
+    void close(bool doUnref) {
+
+	if (doUnref) {
+		Unref();
+	}
 
 	if (closed) return;
 
 	uv_poll_stop(read_watcher_);
 	uv_close((uv_handle_t *)read_watcher_, on_handle_close);
-	Unref();
+
 	read_watcher_ = NULL;
 	start_r_poll = true;
 	lirc_freeconfig(lirc_config_);
@@ -173,7 +177,7 @@ class Lirc_client : public ObjectWrap {
 	}
 
 	if ((lircd_fd == -1) && (prognameindex == -1)) {
-		return ThrowException(Exception::Error(String::New("There is no lirc_client object with this.isClosed == false. So programname is required on new.")));
+		return ThrowException(Exception::Error(String::New("There is no lirc_client object with this.isConnected == true. So programname is required on new.")));
 	}
 
 	if ((configindex > -1) && (configindex < verboseindex)) {
@@ -218,7 +222,7 @@ class Lirc_client : public ObjectWrap {
       Lirc_client *lc = ObjectWrap::Unwrap<Lirc_client>(args.This());
       HandleScope scope;
 
-      lc->close();
+      lc->close(false);
 
       return Undefined();
     }
@@ -239,14 +243,14 @@ class Lirc_client : public ObjectWrap {
     ~Lirc_client() {
 	Emit.Dispose();
 	Emit.Clear();
-	close();
+	close(true);
     }
 
-    static Handle<Value> IsClosedGetter (Local<String> property,
+    static Handle<Value> IsConnectedGetter (Local<String> property,
                                             const AccessorInfo& info) {
 	Lirc_client *lc = ObjectWrap::Unwrap<Lirc_client>(info.This());
 	assert(lc);
-	assert(property == isClosed_symbol);
+	assert(property == isConnected_symbol);
 
 	HandleScope scope;
 
@@ -291,7 +295,7 @@ class Lirc_client : public ObjectWrap {
 			}
 			else {
 				// Connection lircd got closed. Emit event.
-				tmpClient->close();
+				tmpClient->close(false);
 				Handle<Value> emit_argv[1] = {
 					closed_symbol
 				};
