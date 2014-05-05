@@ -9,6 +9,7 @@ Requirements
 
 * [node.js](http://nodejs.org) -- v0.10.0+
 * [lirc](http://www.lirc.org/) -- v0.9.0
+  * lirc-devel(Fedora based), liblircclient-dev(raspbian), liblircclient-dev(Ubuntu)  package is required for lirc_client.h header file.
 
 Example
 =======
