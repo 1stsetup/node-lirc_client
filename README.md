@@ -9,7 +9,6 @@ Requirements
 
 * [node.js](http://nodejs.org) -- v0.10.0+
 * [lirc](http://www.lirc.org/) -- v0.9.0
-NodeJS add-on to communicate with the lirc_client
 
 Example
 =======
