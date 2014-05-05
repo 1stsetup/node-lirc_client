@@ -1,3 +1,10 @@
 var addon = require('./build/Release/lirc_client');
 
-console.log(addon.init("piBowClock",true)); // 'world'
+try {
+var lc = new addon.client("testje");
+}
+catch (err) {
+	console.log("Error on new client:",err);
+}
+
+
