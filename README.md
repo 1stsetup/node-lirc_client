@@ -1,3 +1,5 @@
+[![NPM](https://nodei.co/npm/lirc_client.png)](https://nodei.co/npm/lirc_client/)
+
 Description
 ===========
 
