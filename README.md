@@ -29,6 +29,7 @@ try {
 		console.log("Lirc daemon closed our connection. We need to reconnect.");
 	});
 	console.log("client.isConnected:", client.isConnected);
+	console.log("client.mode:", client.mode);
 }
 catch (err) {
 	console.log("Error on new client:",err);
@@ -53,10 +54,12 @@ Module Functions
 * **connect**() - Reconnects a closed connection to the lircd for this object. It will reuse the active programName and verbose values.
 ** Will throw errors when something fails.
 
-Module Functions
+Module properties
 ---------------- 
 
-* < _Boolean_ >**isConnected** - When true is returned there is a connection to the lircd and the object will receive events. When false is returned the object is not connected to lircd and it will not receive events.
+* < _Boolean_ >**isConnected** (read only) - When true is returned there is a connection to the lircd and the object will receive events. When false is returned the object is not connected to lircd and it will not receive events.
+
+* < _String_ >**mode** (read/write) - Will perform lirc_getmode and lirc_setmode. Are not described on lirc website but were found in lirc_client.h file and on following [page](http://lirc.10951.n7.nabble.com/Patch-control-lirc-mode-from-external-program-td1611.html)
 
 Module Events
 -------------

@@ -9,6 +9,8 @@ try {
 		console.log("Lirc daemon closed our connection.");
 	});
 
+	console.log(" client1.mode:", client1.mode);
+
 	console.log(" Before close. client1.isConnected:",client1.isConnected);
 
 	client1.close();

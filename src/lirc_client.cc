@@ -18,6 +18,7 @@ static Persistent<String> emit_symbol;
 static Persistent<String> data_symbol;
 static Persistent<String> closed_symbol;
 static Persistent<String> isConnected_symbol;
+static Persistent<String> mode_symbol;
 
 static int lircd_fd = -1;
 static int lircd_conn_count = 0;
@@ -54,11 +55,13 @@ class Lirc_client : public ObjectWrap {
       closed_symbol = NODE_PSYMBOL("closed");
 
       isConnected_symbol = NODE_PSYMBOL("isConnected");
+      mode_symbol = NODE_PSYMBOL("mode");
 
       NODE_SET_PROTOTYPE_METHOD(Lirc_client_constructor, "close", Close);
       NODE_SET_PROTOTYPE_METHOD(Lirc_client_constructor, "connect", Connect);
 
       Lirc_client_constructor->PrototypeTemplate()->SetAccessor(isConnected_symbol, IsConnectedGetter);
+      Lirc_client_constructor->PrototypeTemplate()->SetAccessor(mode_symbol, ModeGetter, ModeSetter);
 
       target->Set(name, Lirc_client_constructor->GetFunction());
     }
@@ -255,6 +258,39 @@ class Lirc_client : public ObjectWrap {
 	HandleScope scope;
 
 	return scope.Close(Boolean::New(!lc->closed));
+    }
+
+    static Handle<Value> ModeGetter (Local<String> property,
+                                            const AccessorInfo& info) {
+	Lirc_client *lc = ObjectWrap::Unwrap<Lirc_client>(info.This());
+	assert(lc);
+	assert(property == mode_symbol);
+
+	HandleScope scope;
+
+	const char *mode_ = lirc_getmode(lc->lirc_config_);
+
+	if (mode_ == NULL) {
+		return Undefined();
+	}
+	else {
+		return scope.Close(String::New(mode_, strlen(mode_)+1));
+	}
+    }
+
+    static void ModeSetter (Local<String> property, Local<Value> value,
+                                            const AccessorInfo& info) {
+	Lirc_client *lc = ObjectWrap::Unwrap<Lirc_client>(info.This());
+	assert(lc);
+	assert(property == mode_symbol);
+
+	if (!value->IsString()) {
+		ThrowException(Exception::TypeError(String::New("Mode should be a string value")));
+	}
+
+	char * writable = string2char(value->ToString());
+	lirc_setmode(lc->lirc_config_, writable);
+	delete[] writable;
     }
 
     private:
