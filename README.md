@@ -4,6 +4,8 @@ Description
 node-lirc_client provides a lirc_client object so your nodejs application
 can receive lirc command.
 
+It is based on the lirc_client [example](http://www.lirc.org/html/technical.html#library) 
+
 Requirements
 ============
 
@@ -46,7 +48,7 @@ Module Functions
   * Will throw errors when something fails.
   * **!! Currently the configFiles option is ignored so only the global lircrc (/etc/lirc/lircrc) and the personal lircrc (~/.lircrc) are used !!**
 
-* **close**() - Closes connection to lircd for this object.
+* **close**() - Closes the connection to lircd for this object.
 
 * **connect**() - Reconnects a closed connection to the lircd for this object. It will reuse the active programName and verbose values.
 ** Will throw errors when something fails.
@@ -54,12 +56,12 @@ Module Functions
 Module Functions
 ---------------- 
 
-* < _Boolean_ >**isConnected** - When true there is a connection to the lircd and the object will receive events. When false object is not connected to lircd and it will not receive events.
+* < _Boolean_ >**isConnected** - When true is returned there is a connection to the lircd and the object will receive events. When false is returned the object is not connected to lircd and it will not receive events.
 
 Module Events
 -------------
 
-* **data**(< _String_ > data) - Event is emited when there is data available on the lircd connection. Data will contain config string from lircrc file for button pressed.
+* **data**(< _String_ > data) - Event is emited when there is data available on the lircd connection. The first argument to the callback function will contain the config string from lircrc file for the button pressed.
 
 * **closed**() - Event is emited when lircd has closed our connection. 
 
