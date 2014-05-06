@@ -73,28 +73,34 @@ class Lirc_client : public ObjectWrap {
 	read_watcher_ = NULL;
 	lirc_config_ = NULL;
 
+printf("1 init\n");
 	if (lircd_fd == -1) {
 		char * writable = string2char(programname);
 		lircd_fd = lirc_init(writable, verbose->Value() == true ? 1 : 0);
 		delete[] writable;
 	}
 	
+printf("2 init\n");
 	if (lircd_fd < 0) {
 		ThrowException(Exception::Error(String::New("Error on lirc_init.")));
 		return;
 	}
 
+printf("3 init\n");
 	lircd_conn_count++;
 
+printf("4 init\n");
 	if (lirc_readconfig(NULL, &lirc_config_, NULL) != 0) {
 		ThrowException(Exception::Error(String::New("Error on lirc_readconfig.")));
 		return;
 	}
 
+printf("5 init\n");
 	if (configfiles->Length() > 0) {
 		// Process each config file..
 	}
 
+printf("6 init\n");
 	if (read_watcher_ == NULL) {
 		read_watcher_ = new uv_poll_t;
 		read_watcher_->data = this;
@@ -102,12 +108,14 @@ class Lirc_client : public ObjectWrap {
 		uv_poll_init(uv_default_loop(), read_watcher_, lircd_fd);
 	}
 
+printf("7 init\n");
 	if (start_r_poll) {
 		// Start input listener
 		uv_poll_start(read_watcher_, UV_READABLE, io_event);
 		start_r_poll = false;
 	}
 
+printf("8 init\n");
 	closed = false;
 
     }
@@ -142,7 +150,7 @@ class Lirc_client : public ObjectWrap {
     void connect() {
 
 	if (!closed) return;
-
+printf("connect\n");
 	init(gProgramName, gVerbose, v8::Array::New());
     }
 
@@ -274,7 +282,7 @@ class Lirc_client : public ObjectWrap {
 		return Undefined();
 	}
 	else {
-		return scope.Close(String::New(mode_, strlen(mode_)+1));
+		return scope.Close(String::New(mode_, strlen(mode_)));
 	}
     }
 
@@ -315,15 +323,17 @@ class Lirc_client : public ObjectWrap {
 			int result = lirc_nextcode(&code);
 			if (result == 0) {
 				if (code != NULL) {
+printf("code: %s\n", code);
 					while (((ret=lirc_code2char(tmpClient->lirc_config_,code,&c)) == 0) && (c != NULL)) {
 						Handle<Value> emit_argv[2] = {
 							data_symbol,
-							String::New(c, strlen(c)+1)
+							String::New(c, strlen(c))
 						};
 						TryCatch try_catch;
 						tmpClient->Emit->Call(tmpClient->handle_, 2, emit_argv);
 						if (try_catch.HasCaught())
 							FatalException(try_catch);
+printf("code: %s\n", code);
 					}
 
 					free(code);
