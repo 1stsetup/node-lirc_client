@@ -65,6 +65,7 @@ class Lirc_client : public ObjectWrap {
       NODE_SET_PROTOTYPE_METHOD(Lirc_client_constructor, "close", Close);
       NODE_SET_PROTOTYPE_METHOD(Lirc_client_constructor, "connect", Connect);
       NODE_SET_PROTOTYPE_METHOD(Lirc_client_constructor, "addConfig", AddConfig);
+      NODE_SET_PROTOTYPE_METHOD(Lirc_client_constructor, "clearConfig", ClearConfig);
 
       Lirc_client_constructor->PrototypeTemplate()->SetAccessor(isConnected_symbol, IsConnectedGetter);
       Lirc_client_constructor->PrototypeTemplate()->SetAccessor(mode_symbol, ModeGetter, ModeSetter);
@@ -147,7 +148,10 @@ printf("7 init\n");
 
 	read_watcher_ = NULL;
 	start_r_poll = true;
-	lirc_freeconfig(lirc_config_);
+	if (lirc_config_ != NULL) {
+		lirc_freeconfig(lirc_config_);
+	}
+	lirc_config_ = NULL;
 
 	lircd_conn_count--;
 	if (lircd_conn_count == 0) {
@@ -192,6 +196,13 @@ printf("connect\n");
 		Local<Value> configfile = names->Get(i);
 		addConfig(configfile->ToString());
 	}
+    }
+
+    void clearConfig() {
+
+	configFiles_->Set(String::New("length"), Number::New(0));
+	lirc_freeconfig(lirc_config_);
+	lirc_config_ = NULL;
     }
 
   protected:
@@ -308,6 +319,15 @@ printf("connect\n");
 	return Undefined();
     }
 
+    static Handle<Value> ClearConfig (const Arguments& args) {
+	Lirc_client *lc = ObjectWrap::Unwrap<Lirc_client>(args.This());
+	HandleScope scope;
+
+	lc->clearConfig();
+
+	return Undefined();
+    }
+
     Lirc_client(Local<String> programname, Handle<Boolean> verbose, Local<Array> configfiles) : ObjectWrap() {
 	this->init(programname, verbose, configfiles);
     }
@@ -337,7 +357,10 @@ printf("connect\n");
 
 	HandleScope scope;
 
-	const char *mode_ = lirc_getmode(lc->lirc_config_);
+	const char *mode_ = NULL;
+	if (lc->lirc_config_ != NULL) {
+		lirc_getmode(lc->lirc_config_);
+	}
 
 	if (mode_ == NULL) {
 		return Undefined();
@@ -355,10 +378,17 @@ printf("connect\n");
 
 	if (!value->IsString()) {
 		ThrowException(Exception::TypeError(String::New("Mode should be a string value")));
+		return;
 	}
 
 	char * writable = string2char(value->ToString());
-	lirc_setmode(lc->lirc_config_, writable);
+
+	if (lc->lirc_config_ != NULL) {
+		lirc_setmode(lc->lirc_config_, writable);
+	}
+	else {
+		ThrowException(Exception::TypeError(String::New("Cannot set mode on empty config")));
+	}
 	delete[] writable;
     }
 
@@ -406,16 +436,18 @@ printf("code1: %s\n", code);
 					if (try_catch.HasCaught())
 						FatalException(try_catch);
 
-					while (((ret=lirc_code2char(tmpClient->lirc_config_,code,&c)) == 0) && (c != NULL)) {
-						Handle<Value> emit_argv[2] = {
-							data_symbol,
-							String::New(c, strlen(c))
-						};
-						TryCatch try_catch;
-						tmpClient->Emit->Call(tmpClient->handle_, 2, emit_argv);
-						if (try_catch.HasCaught())
-							FatalException(try_catch);
-printf("code2: %s\n", code);
+					if (tmpClient->lirc_config_ != NULL) {
+						while (((ret=lirc_code2char(tmpClient->lirc_config_,code,&c)) == 0) && (c != NULL)) {
+							Handle<Value> emit_argv[2] = {
+								data_symbol,
+								String::New(c, strlen(c))
+							};
+							TryCatch try_catch;
+							tmpClient->Emit->Call(tmpClient->handle_, 2, emit_argv);
+							if (try_catch.HasCaught())
+								FatalException(try_catch);
+	printf("code2: %s\n", code);
+						}
 					}
 
 					free(code);

@@ -16,6 +16,10 @@ try {
 	console.log(" client1.configFiles:", client1.configFiles);
 	client1.addConfig("test2a.lircrc");
 	console.log(" client1.configFiles:", client1.configFiles);
+
+	client1.clearConfig();
+	console.log(" client1.configFiles:", client1.configFiles);
+
 	client1.addConfig(["test2b.lircrc", "test2c.lircrc"]);
 	console.log(" client1.configFiles:", client1.configFiles);
 

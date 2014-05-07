@@ -68,9 +68,11 @@ Module Functions
 * **connect**() - Reconnects a closed connection to the lircd for this object. It will reuse the active programName and verbose values.
   * Will throw errors when something fails.
 
-* **addConfig**([< _String_ >configFile] | [< _Array_ >configFiles]) - Add one or more lircrc config files.
+* **addConfig**(< _String_ >configFile | < _Array_ >configFiles) - Add one or more lircrc config files.
   * < _String_ >**configFile** - Must contain the full or relative path to an existing lircrc file.
   * < _Array_ >**configFiles** - Is an array of _String_ values. Each string must contain the full or relative path to an existing lircrc file.
+
+* **clearConfig**() - Will remove all lircrc config files from object. No more "data" events will be emited until at least one config has been added again.
 
 Module properties
 ---------------- 
@@ -86,7 +88,7 @@ Module Events
 
 * **rawdata**(< _String_ > data) - Event is emited when there is data available on the lircd connection. The first argument to the callback function will contain the raw lirc data for the button pressed. (code from lirc_client function "int lirc_nextcode(char **code);")
 
-* **data**(< _String_ > data) - Event is emited when there is data available on the lircd connection. The first argument to the callback function will contain the config string from lircrc file for the button pressed and the specified programname when client was created. (string from lirc_client function "int lirc_code2char(struct lirc_config *config,char *code,char **string);")
+* **data**(< _String_ > data) - Event is emited when there is data available on the lircd connection and at least one config is loaded. The first argument to the callback function will contain the config string from lircrc file for the button pressed and the specified programname when client was created. (string from lirc_client function "int lirc_code2char(struct lirc_config *config,char *code,char **string);")
 
 * **closed**() - Event is emited when lircd has closed our connection. 
 
