@@ -64,6 +64,7 @@ class Lirc_client : public ObjectWrap {
 
       NODE_SET_PROTOTYPE_METHOD(Lirc_client_constructor, "close", Close);
       NODE_SET_PROTOTYPE_METHOD(Lirc_client_constructor, "connect", Connect);
+      NODE_SET_PROTOTYPE_METHOD(Lirc_client_constructor, "addConfig", AddConfig);
 
       Lirc_client_constructor->PrototypeTemplate()->SetAccessor(isConnected_symbol, IsConnectedGetter);
       Lirc_client_constructor->PrototypeTemplate()->SetAccessor(mode_symbol, ModeGetter, ModeSetter);
@@ -98,19 +99,8 @@ printf("3 init\n");
 printf("4 init\n");
 	if (configfiles->Length() > 0) {
 		// Process each config file..
-		int length = configfiles->Length();
-		configFiles_ = Persistent<Array>::New( Array::New(configfiles->Length()) );
-		for(int i = 0; i < length; i++) {
-			Local<Value> configfile = configfiles->Get(i);
-			configFiles_->Set(Number::New(i), configfile->ToString());
-			char * writable = string2char(configfile->ToString());
-			if (lirc_readconfig(writable, &lirc_config_, NULL) != 0) {
-				ThrowException(Exception::Error(String::Concat(String::New("Error on lirc_readconfig for file:"),configfile->ToString())));
-				delete[] writable;
-				return;
-			}
-			delete[] writable;
-		}
+		configFiles_ = Persistent<Array>::New( Array::New() );
+		addConfig(configfiles);
 	}
 	else {
 		configFiles_ = Persistent<Array>::New( Array::New() );
@@ -172,6 +162,36 @@ printf("7 init\n");
 	if (!closed) return;
 printf("connect\n");
 	init(gProgramName, gVerbose, v8::Array::New());
+    }
+
+    void addConfig(Local<String> name) {
+
+	char * writable = string2char(name);
+	if (lirc_readconfig(writable, &lirc_config_, NULL) != 0) {
+		ThrowException(Exception::Error(String::Concat(String::New("Error on lirc_readconfig for file:"),name)));
+		delete[] writable;
+		return;
+	}
+	delete[] writable;
+
+	uint32_t oldLength = configFiles_->Length();
+
+	configFiles_->Set(String::New("length"), Number::New(oldLength+1));
+	configFiles_->Set(Number::New(oldLength), name);
+
+    }
+
+    void addConfig(Local<Array> names) {
+
+	int length = names->Length();
+	for(int i = 0; i < length; i++) {
+		if (!names->Get(i)->IsString()) {
+			ThrowException(Exception::Error(String::Concat(String::New("Array element is not a String:"),names->Get(i)->ToString())));
+			return;
+		}
+		Local<Value> configfile = names->Get(i);
+		addConfig(configfile->ToString());
+	}
     }
 
   protected:
@@ -265,6 +285,27 @@ printf("connect\n");
       lc->connect();
 
       return Undefined();
+    }
+
+    static Handle<Value> AddConfig (const Arguments& args) {
+	Lirc_client *lc = ObjectWrap::Unwrap<Lirc_client>(args.This());
+	HandleScope scope;
+
+	if (args.Length() != 1) {
+		return ThrowException(Exception::TypeError(String::New("Only one Array or String argument is allowed.")));
+	}
+
+	if (args[0]->IsArray()) {
+		lc->addConfig(Local<Array>::Cast(args[0]));
+	}
+	else if (args[0]->IsString()) {
+		lc->addConfig(args[0]->ToString());
+	}
+	else {
+		return ThrowException(Exception::TypeError(String::New("Only an Array or a String argument is allowed.")));
+	}
+
+	return Undefined();
     }
 
     Lirc_client(Local<String> programname, Handle<Boolean> verbose, Local<Array> configfiles) : ObjectWrap() {

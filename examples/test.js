@@ -14,6 +14,10 @@ try {
 
 	console.log(" client1.mode:", client1.mode);
 	console.log(" client1.configFiles:", client1.configFiles);
+	client1.addConfig("test2a.lircrc");
+	console.log(" client1.configFiles:", client1.configFiles);
+	client1.addConfig(["test2b.lircrc", "test2c.lircrc"]);
+	console.log(" client1.configFiles:", client1.configFiles);
 
 	console.log(" Before close. client1.isConnected:",client1.isConnected);
 

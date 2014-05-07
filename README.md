@@ -68,6 +68,10 @@ Module Functions
 * **connect**() - Reconnects a closed connection to the lircd for this object. It will reuse the active programName and verbose values.
   * Will throw errors when something fails.
 
+* **addConfig**([< _String_ >configFile] | [< _Array_ >configFiles]) - Add one or more lircrc config files.
+  * < _String_ >**configFile** - Must contain the full or relative path to an existing lircrc file.
+  * < _Array_ >**configFiles** - Is an array of _String_ values. Each string must contain the full or relative path to an existing lircrc file.
+
 Module properties
 ---------------- 
 
