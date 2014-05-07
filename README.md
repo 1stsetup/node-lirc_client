@@ -8,6 +8,12 @@ can receive lirc command.
 
 It is based on the lirc_client [example](http://www.lirc.org/html/technical.html#library) 
 
+Installation
+============
+```text
+npm install lirc_client
+````
+
 Requirements
 ============
 
