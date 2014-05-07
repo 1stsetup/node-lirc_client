@@ -62,7 +62,7 @@ Module Functions
 * **close**() - Closes the connection to lircd for this object.
 
 * **connect**() - Reconnects a closed connection to the lircd for this object. It will reuse the active programName and verbose values.
-** Will throw errors when something fails.
+  * Will throw errors when something fails.
 
 Module properties
 ---------------- 
