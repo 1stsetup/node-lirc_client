@@ -267,9 +267,7 @@ printf("connect\n");
 	}
     }
 
-    void * GetLircConfig(int index) {
-	return lirc_config_[index];
-    }
+    struct lirc_config *lirc_config_[MAX_CONFIGS];
 
   protected:
     static Handle<Value> New (const Arguments& args) {
@@ -470,7 +468,6 @@ printf("connect\n");
     }
 
     private:
-	struct lirc_config *lirc_config_[MAX_CONFIGS];
 	bool closed;
 	v8::Persistent<v8::Array> configFiles_;
 
@@ -506,9 +503,9 @@ static void io_event (uv_poll_t* req, int status, int revents) {
 
 						for (int i=0; i<MAX_CONFIGS; i++) {
 printf("1. Trying config '%d' of client '%d'.\n", i, ccount);
-							if ((struct lirc_config *)(connectedClients[ccount]->GetLircConfig(i)) != NULL) {
+							if (connectedClients[ccount]->lirc_config_[i] != NULL) {
 printf("2. Trying config '%d' of client '%d'.\n", i, ccount);
-								while (((ret=lirc_code2char((struct lirc_config *)(connectedClients[ccount]->GetLircConfig(i)),code,&c)) == 0) && (c != NULL)) {
+								while (((ret=lirc_code2char(connectedClients[ccount]->lirc_config_[i],code,&c)) == 0) && (c != NULL)) {
 									// Send data event.
 printf("3. Trying config '%d' of client '%d'.\n", i, ccount);
 									Handle<Value> emit_argv[2] = {
