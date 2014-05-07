@@ -14,6 +14,9 @@ using namespace node;
 // https://github.com/mscdex/node-ncurses/blob/master/src/binding.cc
 // Was used as an example for this source
 
+#define MAX_CONFIGS 20
+#define MAX_CONNECTED_CLIENTS 20
+
 static Persistent<FunctionTemplate> Lirc_client_constructor;
 static Persistent<String> emit_symbol;
 static Persistent<String> data_symbol;
@@ -28,7 +31,9 @@ static int lircd_conn_count = 0;
 static Local<String> gProgramName;
 static Handle<Boolean> gVerbose;
 
-#define MAX_CONFIGS 20
+class Lirc_client;
+
+static Lirc_client *connectedClients[MAX_CONNECTED_CLIENTS]; 
 
 char *string2char(const Local<String> avalue) {
 
@@ -132,6 +137,18 @@ printf("6a init\n");
 		uv_poll_start(read_watcher_, UV_READABLE, io_event);
 		start_r_poll = false;
 	}
+	else {
+		int i = 0;
+		while ((i < MAX_CONNECTED_CLIENTS) && (connectedClients[i] != NULL)) {
+			i++;
+		}
+		if (i < MAX_CONNECTED_CLIENTS) {
+			connectedClients[i] = this;
+		}
+		else {
+			ThrowException(Exception::Error(String::New("To many connected clients.")));
+		}
+	}
 
 printf("7 init\n");
 	closed = false;
@@ -151,14 +168,6 @@ printf("on_handle_close\n");
 
 	if (closed) return;
 
-	if (read_watcher_ != NULL) {
-		uv_poll_stop(read_watcher_);
-		uv_close((uv_handle_t *)read_watcher_, on_handle_close);
-printf("uv_close\n");
-	}
-
-	read_watcher_ = NULL;
-	start_r_poll = true;
 	for (int i=0; i < MAX_CONFIGS; i++) {
 		if (lirc_config_[i] != NULL) {
 			lirc_freeconfig(lirc_config_[i]);
@@ -168,6 +177,15 @@ printf("uv_close\n");
 
 	lircd_conn_count--;
 	if (lircd_conn_count == 0) {
+		if (read_watcher_ != NULL) {
+			uv_poll_stop(read_watcher_);
+			uv_close((uv_handle_t *)read_watcher_, on_handle_close);
+	printf("uv_close\n");
+		}
+
+		read_watcher_ = NULL;
+		start_r_poll = true;
+
 printf("lirc_deinit\n");
 		lirc_deinit();
 		lircd_fd = -1;
@@ -457,31 +475,32 @@ printf("connect\n");
 			char *c;
 			int ret;
 
-			Lirc_client *tmpClient = (Lirc_client *)req->data;
-
 			int result = lirc_nextcode(&code);
 			if (result == 0) {
 				if (code != NULL) {
-					Handle<Value> emit_argv[2] = {
-						rawdata_symbol,
-						String::New(code, strlen(code))
-					};
-					TryCatch try_catch;
-					tmpClient->Emit->Call(tmpClient->handle_, 2, emit_argv);
-					if (try_catch.HasCaught())
-						FatalException(try_catch);
 
-					for (int i=0; i<MAX_CONFIGS; i++) {
-						if (tmpClient->lirc_config_[i] != NULL) {
-							while (((ret=lirc_code2char(tmpClient->lirc_config_[i],code,&c)) == 0) && (c != NULL)) {
-								Handle<Value> emit_argv[2] = {
-									data_symbol,
-									String::New(c, strlen(c))
-								};
-								TryCatch try_catch;
-								tmpClient->Emit->Call(tmpClient->handle_, 2, emit_argv);
-								if (try_catch.HasCaught())
-									FatalException(try_catch);
+					for (int ccount=0; ccount < MAX_CONNECTED_CLIENTS; ccount++) {
+						Handle<Value> emit_argv[2] = {
+							rawdata_symbol,
+							String::New(code, strlen(code))
+						};
+						TryCatch try_catch;
+						connectedClients[ccount]->Emit->Call(connectedClients[ccount]->handle_, 2, emit_argv);
+						if (try_catch.HasCaught())
+							FatalException(try_catch);
+
+						for (int i=0; i<MAX_CONFIGS; i++) {
+							if (connectedClients[ccount]->lirc_config_[i] != NULL) {
+								while (((ret=lirc_code2char(connectedClients[ccount]->lirc_config_[i],code,&c)) == 0) && (c != NULL)) {
+									Handle<Value> emit_argv[2] = {
+										data_symbol,
+										String::New(c, strlen(c))
+									};
+									TryCatch try_catch;
+									connectedClients[ccount]->Emit->Call(connectedClients[ccount]->handle_, 2, emit_argv);
+									if (try_catch.HasCaught())
+										FatalException(try_catch);
+								}
 							}
 						}
 					}
@@ -491,14 +510,16 @@ printf("connect\n");
 			}
 			else {
 				// Connection lircd got closed. Emit event.
-				tmpClient->close(false);
-				Handle<Value> emit_argv[1] = {
-					closed_symbol
-				};
-				TryCatch try_catch;
-				tmpClient->Emit->Call(tmpClient->handle_, 1, emit_argv);
-				if (try_catch.HasCaught())
-					FatalException(try_catch);
+				for (int ccount=0; ccount < MAX_CONNECTED_CLIENTS; ccount++) {
+					connectedClients[ccount]->close(false);
+					Handle<Value> emit_argv[1] = {
+						closed_symbol
+					};
+					TryCatch try_catch;
+					connectedClients[ccount]->Emit->Call(connectedClients[ccount]->handle_, 1, emit_argv);
+					if (try_catch.HasCaught())
+						FatalException(try_catch);
+				}
 			}
 		}
 	}
@@ -508,8 +529,12 @@ printf("connect\n");
 
 extern "C" {
   void init (Handle<Object> target) {
-    HandleScope scope;
-    Lirc_client::Initialize(target);
+	HandleScope scope;
+
+	for(int i = 0; i < MAX_CONNECTED_CLIENTS; i++) {
+		connectedClients[i] = NULL;
+	}
+	Lirc_client::Initialize(target);
   }
 
   NODE_MODULE(lirc_client, init);
