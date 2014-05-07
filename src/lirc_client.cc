@@ -173,7 +173,13 @@ printf("7 init\n");
 
 	if (!closed) return;
 printf("connect\n");
-	init(gProgramName, gVerbose, v8::Array::New());
+
+	int length = configFiles_->Length();
+	Local<Array> tmpArray = Array::New(length);
+	for (int i = 0; i < length; i++) {
+		tmpArray->Set(i, configFiles_->Get(i));
+	}
+	init(gProgramName, gVerbose, tmpArray);
     }
 
     void addConfig(Local<String> name) {
