@@ -47,6 +47,8 @@ char *string2char(const Local<String> avalue) {
 	return writable;
 }
 
+static void io_event (uv_poll_t* req, int status, int revents);
+
 class Lirc_client : public ObjectWrap {
   public:
     Persistent<Function> Emit;
@@ -259,6 +261,10 @@ printf("connect\n");
 	}
     }
 
+    lirc_config * GetLircConfig(int index) {
+	return lirc_config_[index];
+    }
+
   protected:
     static Handle<Value> New (const Arguments& args) {
 	HandleScope scope;
@@ -464,68 +470,68 @@ printf("connect\n");
 	bool closed;
 	v8::Persistent<v8::Array> configFiles_;
 
-	static void io_event (uv_poll_t* req, int status, int revents) {
-		HandleScope scope;
+};
 
-		if (status < 0)
-			return;
+static void io_event (uv_poll_t* req, int status, int revents) {
+	HandleScope scope;
 
-		if (revents & UV_READABLE) {
-			char *code;
-			char *c;
-			int ret;
+	if (status < 0)
+		return;
 
-			int result = lirc_nextcode(&code);
-			if (result == 0) {
-				if (code != NULL) {
+	if (revents & UV_READABLE) {
+		char *code;
+		char *c;
+		int ret;
 
-					for (int ccount=0; ccount < MAX_CONNECTED_CLIENTS; ccount++) {
-						Handle<Value> emit_argv[2] = {
-							rawdata_symbol,
-							String::New(code, strlen(code))
-						};
-						TryCatch try_catch;
-						connectedClients[ccount]->Emit->Call(connectedClients[ccount]->handle_, 2, emit_argv);
-						if (try_catch.HasCaught())
-							FatalException(try_catch);
+		int result = lirc_nextcode(&code);
+		if (result == 0) {
+			if (code != NULL) {
 
-						for (int i=0; i<MAX_CONFIGS; i++) {
-							if (connectedClients[ccount]->lirc_config_[i] != NULL) {
-								while (((ret=lirc_code2char(connectedClients[ccount]->lirc_config_[i],code,&c)) == 0) && (c != NULL)) {
-									Handle<Value> emit_argv[2] = {
-										data_symbol,
-										String::New(c, strlen(c))
-									};
-									TryCatch try_catch;
-									connectedClients[ccount]->Emit->Call(connectedClients[ccount]->handle_, 2, emit_argv);
-									if (try_catch.HasCaught())
-										FatalException(try_catch);
-								}
+				for (int ccount=0; ccount < MAX_CONNECTED_CLIENTS; ccount++) {
+					Handle<Value> emit_argv[2] = {
+						rawdata_symbol,
+						String::New(code, strlen(code))
+					};
+					TryCatch try_catch;
+					connectedClients[ccount]->Emit->Call(connectedClients[ccount]->handle_, 2, emit_argv);
+					if (try_catch.HasCaught())
+						FatalException(try_catch);
+
+					for (int i=0; i<MAX_CONFIGS; i++) {
+						if (connectedClients[ccount]->GetLircConfig(i) != NULL) {
+							while (((ret=lirc_code2char(connectedClients[ccount]->GetLircConfig(i),code,&c)) == 0) && (c != NULL)) {
+								Handle<Value> emit_argv[2] = {
+									data_symbol,
+									String::New(c, strlen(c))
+								};
+								TryCatch try_catch;
+								connectedClients[ccount]->Emit->Call(connectedClients[ccount]->handle_, 2, emit_argv);
+								if (try_catch.HasCaught())
+									FatalException(try_catch);
 							}
 						}
 					}
+				}
 
-					free(code);
-				}
+				free(code);
 			}
-			else {
-				// Connection lircd got closed. Emit event.
-				for (int ccount=0; ccount < MAX_CONNECTED_CLIENTS; ccount++) {
-					connectedClients[ccount]->close(false);
-					Handle<Value> emit_argv[1] = {
-						closed_symbol
-					};
-					TryCatch try_catch;
-					connectedClients[ccount]->Emit->Call(connectedClients[ccount]->handle_, 1, emit_argv);
-					if (try_catch.HasCaught())
-						FatalException(try_catch);
-				}
+		}
+		else {
+			// Connection lircd got closed. Emit event.
+			for (int ccount=0; ccount < MAX_CONNECTED_CLIENTS; ccount++) {
+				connectedClients[ccount]->close(false);
+				Handle<Value> emit_argv[1] = {
+					closed_symbol
+				};
+				TryCatch try_catch;
+				connectedClients[ccount]->Emit->Call(connectedClients[ccount]->handle_, 1, emit_argv);
+				if (try_catch.HasCaught())
+					FatalException(try_catch);
 			}
 		}
 	}
+}
 
-
-};
 
 extern "C" {
   void init (Handle<Object> target) {
