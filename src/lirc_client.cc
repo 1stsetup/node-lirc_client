@@ -33,6 +33,9 @@ static Handle<Boolean> gVerbose;
 
 static uv_poll_t *read_watcher_;
 
+struct Tlirc_config {
+	struct lirc_config *lirc_config_;
+};
 
 class Lirc_client;
 
@@ -89,8 +92,9 @@ class Lirc_client : public ObjectWrap {
     void init(Local<String> programname, Handle<Boolean> verbose, Local<Array> configfiles) {
 
 	closed = true;
+
 	for (int i=0; i < MAX_CONFIGS; i++) {
-		lirc_config_[i] = NULL;
+		my_lirc_config[i].lirc_config_ = NULL;
 	}
 
 printf("1 init\n");
@@ -167,10 +171,10 @@ printf("on_handle_close\n");
 	if (closed) return;
 
 	for (int i=0; i < MAX_CONFIGS; i++) {
-		if (lirc_config_[i] != NULL) {
-			lirc_freeconfig(lirc_config_[i]);
+		if (my_lirc_config[i].lirc_config_ != NULL) {
+			lirc_freeconfig(my_lirc_config[i].lirc_config_);
 		}
-		lirc_config_[i] = NULL;
+		my_lirc_config[i].lirc_config_ = NULL;
 	}
 
 	lircd_conn_count--;
@@ -214,7 +218,7 @@ printf("connect\n");
     void addConfig(Local<String> name) {
 
 	int i = 0;
-	while ((i < MAX_CONFIGS) && (lirc_config_[i] != NULL)) {
+	while ((i < MAX_CONFIGS) && (my_lirc_config[i].lirc_config_ != NULL)) {
 		i++;
 	}
 
@@ -224,7 +228,7 @@ printf("connect\n");
 			writable = string2char(name);
 		}
 
-		if (lirc_readconfig(writable, &lirc_config_[i], NULL) != 0) {
+		if (lirc_readconfig(writable, &my_lirc_config[i].lirc_config_, NULL) != 0) {
 			ThrowException(Exception::Error(String::Concat(String::New("Error on lirc_readconfig for file:"),name)));
 			delete[] writable;
 			return;
@@ -260,14 +264,14 @@ printf("connect\n");
 	configFiles_->Set(String::New("length"), Number::New(0));
 
 	for (int i=0; i < MAX_CONFIGS; i++) {
-		if (lirc_config_[i] != NULL) {
-			lirc_freeconfig(lirc_config_[i]);
-			lirc_config_[i] = NULL;
+		if (my_lirc_config[i].lirc_config_ != NULL) {
+			lirc_freeconfig(my_lirc_config[i].lirc_config_);
+			my_lirc_config[i].lirc_config_ = NULL;
 		}
 	}
     }
 
-    struct lirc_config *lirc_config_[MAX_CONFIGS];
+    Tlirc_config *my_lirc_config;
 
   protected:
     static Handle<Value> New (const Arguments& args) {
@@ -393,6 +397,9 @@ printf("connect\n");
     }
 
     Lirc_client(Local<String> programname, Handle<Boolean> verbose, Local<Array> configfiles) : ObjectWrap() {
+
+	this->my_lirc_config = new Tlirc_config[MAX_CONFIGS];
+
 	this->init(programname, verbose, configfiles);
     }
 
@@ -400,6 +407,8 @@ printf("connect\n");
 	Emit.Dispose();
 	Emit.Clear();
 	close(true);
+
+	delete this->my_lirc_config;
     }
 
     static Handle<Value> IsConnectedGetter (Local<String> property,
@@ -422,8 +431,8 @@ printf("connect\n");
 	HandleScope scope;
 
 	const char *mode_ = NULL;
-	if (lc->lirc_config_[0] != NULL) {
-		lirc_getmode(lc->lirc_config_[0]);
+	if (lc->my_lirc_config[0].lirc_config_ != NULL) {
+		lirc_getmode(lc->my_lirc_config[0].lirc_config_);
 	}
 
 	if (mode_ == NULL) {
@@ -447,8 +456,8 @@ printf("connect\n");
 
 	char * writable = string2char(value->ToString());
 
-	if (lc->lirc_config_[0] != NULL) {
-		lirc_setmode(lc->lirc_config_[0], writable);
+	if (lc->my_lirc_config[0].lirc_config_ != NULL) {
+		lirc_setmode(lc->my_lirc_config[0].lirc_config_, writable);
 	}
 	else {
 		ThrowException(Exception::TypeError(String::New("Cannot set mode on empty config")));
@@ -502,10 +511,9 @@ static void io_event (uv_poll_t* req, int status, int revents) {
 							FatalException(try_catch);
 
 						for (int i=0; i<MAX_CONFIGS; i++) {
-printf("1. Trying config '%d' of client '%d'.\n", i, ccount);
-							if (connectedClients[ccount]->lirc_config_[i] != NULL) {
+							if (connectedClients[ccount]->my_lirc_config[i].lirc_config_ != NULL) {
 printf("2. Trying config '%d' of client '%d'.\n", i, ccount);
-								while (((ret=lirc_code2char(connectedClients[ccount]->lirc_config_[i],code,&c)) == 0) && (c != NULL)) {
+								while (((ret=lirc_code2char(connectedClients[ccount]->my_lirc_config[i].lirc_config_,code,&c)) == 0) && (c != NULL)) {
 									// Send data event.
 printf("3. Trying config '%d' of client '%d'.\n", i, ccount);
 									Handle<Value> emit_argv[2] = {
