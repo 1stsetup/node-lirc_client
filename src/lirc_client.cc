@@ -31,6 +31,10 @@ static int lircd_conn_count = 0;
 static Local<String> gProgramName;
 static Handle<Boolean> gVerbose;
 
+static bool start_r_poll;
+static uv_poll_t* read_watcher_;
+
+
 class Lirc_client;
 
 static Lirc_client *connectedClients[MAX_CONNECTED_CLIENTS]; 
@@ -464,8 +468,6 @@ printf("connect\n");
     }
 
     private:
-	bool start_r_poll;
-	uv_poll_t* read_watcher_;
 	struct lirc_config *lirc_config_[MAX_CONFIGS];
 	bool closed;
 	v8::Persistent<v8::Array> configFiles_;
