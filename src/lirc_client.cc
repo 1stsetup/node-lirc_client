@@ -90,17 +90,28 @@ printf("3 init\n");
 	lircd_conn_count++;
 
 printf("4 init\n");
-	if (lirc_readconfig(NULL, &lirc_config_, NULL) != 0) {
-		ThrowException(Exception::Error(String::New("Error on lirc_readconfig.")));
-		return;
+	if (configfiles->Length() > 0) {
+		// Process each config file..
+		int length = configfiles->Length();
+		for(int i = 0; i < length; i++) {
+			Local<Value> configfile = configfiles->Get(i);
+			char * writable = string2char(configfile->ToString());
+			if (lirc_readconfig(writable, &lirc_config_, NULL) != 0) {
+				ThrowException(Exception::Error(String::Concat(String::New("Error on lirc_readconfig for file:"),configfile->ToString())));
+				delete[] writable;
+				return;
+			}
+			delete[] writable;
+		}
+	}
+	else {
+		if (lirc_readconfig(NULL, &lirc_config_, NULL) != 0) {
+			ThrowException(Exception::Error(String::New("Error on lirc_readconfig.")));
+			return;
+		}
 	}
 
 printf("5 init\n");
-	if (configfiles->Length() > 0) {
-		// Process each config file..
-	}
-
-printf("6 init\n");
 	if (read_watcher_ == NULL) {
 		read_watcher_ = new uv_poll_t;
 		read_watcher_->data = this;
@@ -108,14 +119,14 @@ printf("6 init\n");
 		uv_poll_init(uv_default_loop(), read_watcher_, lircd_fd);
 	}
 
-printf("7 init\n");
+printf("6 init\n");
 	if (start_r_poll) {
 		// Start input listener
 		uv_poll_start(read_watcher_, UV_READABLE, io_event);
 		start_r_poll = false;
 	}
 
-printf("8 init\n");
+printf("7 init\n");
 	closed = false;
 
     }
@@ -323,7 +334,7 @@ printf("connect\n");
 			int result = lirc_nextcode(&code);
 			if (result == 0) {
 				if (code != NULL) {
-printf("code: %s\n", code);
+printf("code1: %s\n", code);
 					while (((ret=lirc_code2char(tmpClient->lirc_config_,code,&c)) == 0) && (c != NULL)) {
 						Handle<Value> emit_argv[2] = {
 							data_symbol,
@@ -333,7 +344,7 @@ printf("code: %s\n", code);
 						tmpClient->Emit->Call(tmpClient->handle_, 2, emit_argv);
 						if (try_catch.HasCaught())
 							FatalException(try_catch);
-printf("code: %s\n", code);
+printf("code2: %s\n", code);
 					}
 
 					free(code);

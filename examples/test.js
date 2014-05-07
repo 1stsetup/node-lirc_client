@@ -1,7 +1,7 @@
 var lirc_client = require('..');
 
 try {
-	var client1 = new lirc_client.client("testone", true);
+	var client1 = new lirc_client.client("testone", true, ["test1.lircrc","test2.lircrc"]);
 	client1.on("data", function(data) {
 		console.log("Received data from lirc client1:",data);
 	});
@@ -21,11 +21,9 @@ try {
 
 	console.log(" After connect. client1.isConnected:",client1.isConnected);
 
-	client1.close();  // Remove this line to bypass next error.
+	client1.close();  
 
-	// Next line will trigger an error because client1 is closed and we did not specify a programname
-	// When no other lirc_client object is open and we instantiate a new object we need to specify a programname
-	var client2 = new lirc_client.client(); 
+	var client2 = new lirc_client.client("testtwo", ["test3.lircrc"]); 
 	client2.on("data", function(data) {
 		console.log("Received data from lirc client2:",data);
 	});
