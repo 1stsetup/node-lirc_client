@@ -267,7 +267,7 @@ printf("connect\n");
 	}
     }
 
-    struct lirc_config * GetLircConfig(int index) {
+    void * GetLircConfig(int index) {
 	return lirc_config_[index];
     }
 
@@ -506,9 +506,9 @@ static void io_event (uv_poll_t* req, int status, int revents) {
 
 						for (int i=0; i<MAX_CONFIGS; i++) {
 printf("1. Trying config '%d' of client '%d'.\n", i, ccount);
-							if (connectedClients[ccount]->GetLircConfig(i) != NULL) {
+							if ((struct lirc_config *)(connectedClients[ccount]->GetLircConfig(i)) != NULL) {
 printf("2. Trying config '%d' of client '%d'.\n", i, ccount);
-								while (((ret=lirc_code2char(connectedClients[ccount]->GetLircConfig(i),code,&c)) == 0) && (c != NULL)) {
+								while (((ret=lirc_code2char((struct lirc_config *)(connectedClients[ccount]->GetLircConfig(i)),code,&c)) == 0) && (c != NULL)) {
 									// Send data event.
 printf("3. Trying config '%d' of client '%d'.\n", i, ccount);
 									Handle<Value> emit_argv[2] = {
