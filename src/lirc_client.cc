@@ -31,8 +31,7 @@ static int lircd_conn_count = 0;
 static Local<String> gProgramName;
 static Handle<Boolean> gVerbose;
 
-static bool start_r_poll;
-static uv_poll_t* read_watcher_;
+static uv_poll_t *read_watcher_;
 
 
 class Lirc_client;
@@ -90,8 +89,6 @@ class Lirc_client : public ObjectWrap {
     void init(Local<String> programname, Handle<Boolean> verbose, Local<Array> configfiles) {
 
 	closed = true;
-	start_r_poll = true;
-	read_watcher_ = NULL;
 	for (int i=0; i < MAX_CONFIGS; i++) {
 		lirc_config_[i] = NULL;
 	}
@@ -133,27 +130,20 @@ printf("5a init\n");
 		read_watcher_ = new uv_poll_t;
 		read_watcher_->data = this;
 		// Setup input listener
-		uv_poll_init(uv_default_loop(), read_watcher_, lircd_fd);
-	}
-
-printf("6 init\n");
-	if (start_r_poll) {
-printf("6a init\n");
+printf("6b init\n");
 		// Start input listener
 		uv_poll_start(read_watcher_, UV_READABLE, io_event);
-		start_r_poll = false;
+	}
+
+	int i = 0;
+	while ((i < MAX_CONNECTED_CLIENTS) && (connectedClients[i] != NULL)) {
+		i++;
+	}
+	if (i < MAX_CONNECTED_CLIENTS) {
+		connectedClients[i] = this;
 	}
 	else {
-		int i = 0;
-		while ((i < MAX_CONNECTED_CLIENTS) && (connectedClients[i] != NULL)) {
-			i++;
-		}
-		if (i < MAX_CONNECTED_CLIENTS) {
-			connectedClients[i] = this;
-		}
-		else {
-			ThrowException(Exception::Error(String::New("To many connected clients.")));
-		}
+		ThrowException(Exception::Error(String::New("To many connected clients.")));
 	}
 
 printf("7 init\n");
@@ -190,12 +180,19 @@ printf("on_handle_close\n");
 		}
 
 		read_watcher_ = NULL;
-		start_r_poll = true;
-
 printf("lirc_deinit\n");
 		lirc_deinit();
 		lircd_fd = -1;
 	}
+
+	int i = 0;
+	while ((i < MAX_CONNECTED_CLIENTS) && (connectedClients[i] != this)) {
+		i++;
+	}
+	if (i < MAX_CONNECTED_CLIENTS) {
+		connectedClients[i] = NULL;
+	}
+
 	closed = true;
     }
 
@@ -542,6 +539,8 @@ extern "C" {
 	for(int i = 0; i < MAX_CONNECTED_CLIENTS; i++) {
 		connectedClients[i] = NULL;
 	}
+	read_watcher_ = NULL;
+
 	Lirc_client::Initialize(target);
   }
 
