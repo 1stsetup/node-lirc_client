@@ -168,6 +168,7 @@ printf("uv_close\n");
 
 	lircd_conn_count--;
 	if (lircd_conn_count == 0) {
+printf("lirc_deinit\n");
 		lirc_deinit();
 		lircd_fd = -1;
 	}
