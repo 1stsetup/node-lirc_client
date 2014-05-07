@@ -501,8 +501,9 @@ static void io_event (uv_poll_t* req, int status, int revents) {
 							FatalException(try_catch);
 
 						for (int i=0; i<MAX_CONFIGS; i++) {
-printf("Trying config '%d' of client '%d'.\n", i, ccount);
+printf("1. Trying config '%d' of client '%d'.\n", i, ccount);
 							if (connectedClients[ccount]->GetLircConfig(i) != NULL) {
+printf("2. Trying config '%d' of client '%d'.\n", i, ccount);
 								while (((ret=lirc_code2char(connectedClients[ccount]->GetLircConfig(i),code,&c)) == 0) && (c != NULL)) {
 									// Send data event.
 									Handle<Value> emit_argv[2] = {
