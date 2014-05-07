@@ -118,10 +118,11 @@ printf("4 init\n");
 	}
 	else {
 		configFiles_ = Persistent<Array>::New( Array::New() );
-		if (lirc_readconfig(NULL, &lirc_config_[0], NULL) != 0) {
+		addConfig(String::New(""));
+/*		if (lirc_readconfig(NULL, &lirc_config_[0], NULL) != 0) {
 			ThrowException(Exception::Error(String::New("Error on lirc_readconfig.")));
 			return;
-		}
+		}*/
 	}
 
 printf("5 init\n");
@@ -218,7 +219,10 @@ printf("connect\n");
 	}
 
 	if (i < MAX_CONFIGS) {
-		char * writable = string2char(name);
+		char * writable = NULL;
+		if (name->Length() > 0) {
+			writable = string2char(name);
+		}
 
 		if (lirc_readconfig(writable, &lirc_config_[i], NULL) != 0) {
 			ThrowException(Exception::Error(String::Concat(String::New("Error on lirc_readconfig for file:"),name)));
@@ -506,6 +510,7 @@ printf("1. Trying config '%d' of client '%d'.\n", i, ccount);
 printf("2. Trying config '%d' of client '%d'.\n", i, ccount);
 								while (((ret=lirc_code2char(connectedClients[ccount]->GetLircConfig(i),code,&c)) == 0) && (c != NULL)) {
 									// Send data event.
+printf("3. Trying config '%d' of client '%d'.\n", i, ccount);
 									Handle<Value> emit_argv[2] = {
 										data_symbol,
 										String::New(c, strlen(c))
