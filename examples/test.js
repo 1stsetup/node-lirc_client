@@ -35,7 +35,7 @@ try {
 
 	client1.close();  
 
-	var client2 = new lirc_client.client("testtwo", ["test3.lircrc"]); 
+	var client2 = new lirc_client.client("testone", ["test3.lircrc"]); 
 	client2.on("data", function(data) {
 		console.log("Received data from lirc client2:",data);
 	});
