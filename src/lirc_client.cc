@@ -90,6 +90,7 @@ printf("1 init\n");
 		char * writable = string2char(programname);
 		lircd_fd = lirc_init(writable, verbose->Value() == true ? 1 : 0);
 		delete[] writable;
+		printf("1a lircd_fd:%d\n",lircd_fd);
 	}
 	
 printf("2 init\n");
