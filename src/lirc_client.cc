@@ -130,6 +130,7 @@ printf("5a init\n");
 		read_watcher_ = new uv_poll_t;
 		read_watcher_->data = this;
 		// Setup input listener
+		uv_poll_init(uv_default_loop(), read_watcher_, lircd_fd);
 printf("6b init\n");
 		// Start input listener
 		uv_poll_start(read_watcher_, UV_READABLE, io_event);
