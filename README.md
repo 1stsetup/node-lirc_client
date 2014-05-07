@@ -33,6 +33,10 @@ try {
 		console.log("Received data from lirc:",data);
 		client.close();
 	});
+	client.on("rawdata", function(data) {
+		console.log("Received rawdata from lirc:",data);
+		client.close();
+	});
 	client.on("closed", function() {
 		console.log("Lirc daemon closed our connection. We need to reconnect.");
 	});
@@ -74,7 +78,9 @@ Module properties
 Module Events
 -------------
 
-* **data**(< _String_ > data) - Event is emited when there is data available on the lircd connection. The first argument to the callback function will contain the config string from lircrc file for the button pressed.
+* **rawdata**(< _String_ > data) - Event is emited when there is data available on the lircd connection. The first argument to the callback function will contain the raw lirc data for the button pressed. (code from lirc_client function int "lirc_nextcode(char **code);")
+
+* **data**(< _String_ > data) - Event is emited when there is data available on the lircd connection. The first argument to the callback function will contain the config string from lircrc file for the button pressed and the specified programname when client was created. (string from lirc_client function int "int lirc_code2char(struct lirc_config *config,char *code,char **string);")
 
 * **closed**() - Event is emited when lircd has closed our connection. 
 

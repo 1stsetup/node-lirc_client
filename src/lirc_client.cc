@@ -16,6 +16,7 @@ using namespace node;
 static Persistent<FunctionTemplate> Lirc_client_constructor;
 static Persistent<String> emit_symbol;
 static Persistent<String> data_symbol;
+static Persistent<String> rawdata_symbol;
 static Persistent<String> closed_symbol;
 static Persistent<String> isConnected_symbol;
 static Persistent<String> mode_symbol;
@@ -51,6 +52,7 @@ class Lirc_client : public ObjectWrap {
       Lirc_client_constructor->SetClassName(name);
 
       emit_symbol = NODE_PSYMBOL("emit");
+      rawdata_symbol = NODE_PSYMBOL("rawdata");
       data_symbol = NODE_PSYMBOL("data");
       closed_symbol = NODE_PSYMBOL("closed");
 
@@ -335,6 +337,15 @@ printf("connect\n");
 			if (result == 0) {
 				if (code != NULL) {
 printf("code1: %s\n", code);
+					Handle<Value> emit_argv[2] = {
+						rawdata_symbol,
+						String::New(code, strlen(code))
+					};
+					TryCatch try_catch;
+					tmpClient->Emit->Call(tmpClient->handle_, 2, emit_argv);
+					if (try_catch.HasCaught())
+						FatalException(try_catch);
+
 					while (((ret=lirc_code2char(tmpClient->lirc_config_,code,&c)) == 0) && (c != NULL)) {
 						Handle<Value> emit_argv[2] = {
 							data_symbol,

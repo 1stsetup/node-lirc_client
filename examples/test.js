@@ -5,6 +5,9 @@ try {
 	client1.on("data", function(data) {
 		console.log("Received data from lirc client1:",data);
 	});
+	client1.on("rawdata", function(data) {
+		console.log("Received rawdata from lirc client1:",data);
+	});
 	client1.on("closed", function() {
 		console.log("Lirc daemon closed our connection.");
 	});
