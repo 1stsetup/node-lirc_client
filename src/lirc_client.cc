@@ -267,7 +267,7 @@ printf("connect\n");
 	}
     }
 
-    lirc_config * GetLircConfig(int index) {
+    struct lirc_config * GetLircConfig(int index) {
 	return lirc_config_[index];
     }
 
