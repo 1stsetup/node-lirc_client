@@ -118,6 +118,7 @@ printf("4 init\n");
 
 printf("5 init\n");
 	if (read_watcher_ == NULL) {
+printf("5a init\n");
 		read_watcher_ = new uv_poll_t;
 		read_watcher_->data = this;
 		// Setup input listener
@@ -126,6 +127,7 @@ printf("5 init\n");
 
 printf("6 init\n");
 	if (start_r_poll) {
+printf("6a init\n");
 		// Start input listener
 		uv_poll_start(read_watcher_, UV_READABLE, io_event);
 		start_r_poll = false;
@@ -137,6 +139,7 @@ printf("7 init\n");
     }
 
     static void on_handle_close (uv_handle_t *handle) {
+printf("on_handle_close\n");
 	delete handle;
     }
 
@@ -151,6 +154,7 @@ printf("7 init\n");
 	if (read_watcher_ != NULL) {
 		uv_poll_stop(read_watcher_);
 		uv_close((uv_handle_t *)read_watcher_, on_handle_close);
+printf("uv_close\n");
 	}
 
 	read_watcher_ = NULL;
