@@ -1,5 +1,6 @@
 #include <lirc/lirc_client.h>
 
+#include <inttypes.h>
 #include <stdlib.h>
 #include <string.h>
 #include <string>
@@ -20,6 +21,7 @@ static Persistent<String> rawdata_symbol;
 static Persistent<String> closed_symbol;
 static Persistent<String> isConnected_symbol;
 static Persistent<String> mode_symbol;
+static Persistent<String> configFiles_symbol;
 
 static int lircd_fd = -1;
 static int lircd_conn_count = 0;
@@ -58,12 +60,14 @@ class Lirc_client : public ObjectWrap {
 
       isConnected_symbol = NODE_PSYMBOL("isConnected");
       mode_symbol = NODE_PSYMBOL("mode");
+      configFiles_symbol = NODE_PSYMBOL("configFiles");
 
       NODE_SET_PROTOTYPE_METHOD(Lirc_client_constructor, "close", Close);
       NODE_SET_PROTOTYPE_METHOD(Lirc_client_constructor, "connect", Connect);
 
       Lirc_client_constructor->PrototypeTemplate()->SetAccessor(isConnected_symbol, IsConnectedGetter);
       Lirc_client_constructor->PrototypeTemplate()->SetAccessor(mode_symbol, ModeGetter, ModeSetter);
+      Lirc_client_constructor->PrototypeTemplate()->SetAccessor(configFiles_symbol, ConfigFilesGetter);
 
       target->Set(name, Lirc_client_constructor->GetFunction());
     }
@@ -95,8 +99,10 @@ printf("4 init\n");
 	if (configfiles->Length() > 0) {
 		// Process each config file..
 		int length = configfiles->Length();
+		configFiles_ = Persistent<Array>::New( Array::New(configfiles->Length()) );
 		for(int i = 0; i < length; i++) {
 			Local<Value> configfile = configfiles->Get(i);
+			configFiles_->Set(Number::New(i), configfile->ToString());
 			char * writable = string2char(configfile->ToString());
 			if (lirc_readconfig(writable, &lirc_config_, NULL) != 0) {
 				ThrowException(Exception::Error(String::Concat(String::New("Error on lirc_readconfig for file:"),configfile->ToString())));
@@ -107,6 +113,7 @@ printf("4 init\n");
 		}
 	}
 	else {
+		configFiles_ = Persistent<Array>::New( Array::New() );
 		if (lirc_readconfig(NULL, &lirc_config_, NULL) != 0) {
 			ThrowException(Exception::Error(String::New("Error on lirc_readconfig.")));
 			return;
@@ -314,11 +321,23 @@ printf("connect\n");
 	delete[] writable;
     }
 
+    static Handle<Value> ConfigFilesGetter (Local<String> property,
+                                            const AccessorInfo& info) {
+	Lirc_client *lc = ObjectWrap::Unwrap<Lirc_client>(info.This());
+	assert(lc);
+	assert(property == configFiles_symbol);
+
+	HandleScope scope;
+
+	return scope.Close(lc->configFiles_);
+    }
+
     private:
 	bool start_r_poll;
 	uv_poll_t* read_watcher_;
 	struct lirc_config *lirc_config_;
 	bool closed;
+	v8::Persistent<v8::Array> configFiles_;
 
 	static void io_event (uv_poll_t* req, int status, int revents) {
 		HandleScope scope;

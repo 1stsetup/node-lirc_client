@@ -75,6 +75,8 @@ Module properties
 
 * < _String_ >**mode** (read/write) - Will perform lirc_getmode and lirc_setmode. Are not described on lirc website but were found in lirc_client.h file and on following [page](http://lirc.10951.n7.nabble.com/Patch-control-lirc-mode-from-external-program-td1611.html)
 
+* < _Array_ >**configFiles** (read only) - Will contain a list with config filenames currently active. When array is empty the lirc default lircrc config files are used.
+
 Module Events
 -------------
 
