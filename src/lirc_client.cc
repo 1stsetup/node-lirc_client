@@ -147,8 +147,10 @@ printf("7 init\n");
 
 	if (closed) return;
 
-	uv_poll_stop(read_watcher_);
-	uv_close((uv_handle_t *)read_watcher_, on_handle_close);
+	if (read_watcher_ != NULL) {
+		uv_poll_stop(read_watcher_);
+		uv_close((uv_handle_t *)read_watcher_, on_handle_close);
+	}
 
 	read_watcher_ = NULL;
 	start_r_poll = true;
