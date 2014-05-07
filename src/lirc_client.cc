@@ -28,6 +28,8 @@ static int lircd_conn_count = 0;
 static Local<String> gProgramName;
 static Handle<Boolean> gVerbose;
 
+#define MAX_CONFIGS 20
+
 char *string2char(const Local<String> avalue) {
 
 	v8::String::Utf8Value utf8_value(avalue);
@@ -79,7 +81,9 @@ class Lirc_client : public ObjectWrap {
 	closed = true;
 	start_r_poll = true;
 	read_watcher_ = NULL;
-	lirc_config_ = NULL;
+	for (int i=0; i < MAX_CONFIGS; i++) {
+		lirc_config_[i] = NULL;
+	}
 
 printf("1 init\n");
 	if (lircd_fd == -1) {
@@ -105,7 +109,7 @@ printf("4 init\n");
 	}
 	else {
 		configFiles_ = Persistent<Array>::New( Array::New() );
-		if (lirc_readconfig(NULL, &lirc_config_, NULL) != 0) {
+		if (lirc_readconfig(NULL, &lirc_config_[0], NULL) != 0) {
 			ThrowException(Exception::Error(String::New("Error on lirc_readconfig.")));
 			return;
 		}
@@ -148,10 +152,12 @@ printf("7 init\n");
 
 	read_watcher_ = NULL;
 	start_r_poll = true;
-	if (lirc_config_ != NULL) {
-		lirc_freeconfig(lirc_config_);
+	for (int i=0; i < MAX_CONFIGS; i++) {
+		if (lirc_config_[i] != NULL) {
+			lirc_freeconfig(lirc_config_[i]);
+		}
+		lirc_config_[i] = NULL;
 	}
-	lirc_config_ = NULL;
 
 	lircd_conn_count--;
 	if (lircd_conn_count == 0) {
@@ -170,19 +176,30 @@ printf("connect\n");
 
     void addConfig(Local<String> name) {
 
-	char * writable = string2char(name);
-	if (lirc_readconfig(writable, &lirc_config_, NULL) != 0) {
-		ThrowException(Exception::Error(String::Concat(String::New("Error on lirc_readconfig for file:"),name)));
-		delete[] writable;
-		return;
+	int i = 0;
+	while ((i < MAX_CONFIGS) && (lirc_config_[i] != NULL)) {
+		i++;
 	}
-	delete[] writable;
 
-	uint32_t oldLength = configFiles_->Length();
+	if (i < MAX_CONFIGS) {
+		char * writable = string2char(name);
 
-	configFiles_->Set(String::New("length"), Number::New(oldLength+1));
-	configFiles_->Set(Number::New(oldLength), name);
+		if (lirc_readconfig(writable, &lirc_config_[i], NULL) != 0) {
+			ThrowException(Exception::Error(String::Concat(String::New("Error on lirc_readconfig for file:"),name)));
+			delete[] writable;
+			return;
+		}
+	
+		delete[] writable;
 
+		uint32_t oldLength = configFiles_->Length();
+
+		configFiles_->Set(String::New("length"), Number::New(oldLength+1));
+		configFiles_->Set(Number::New(oldLength), name);
+	}
+	else {
+		ThrowException(Exception::Error(String::New("Config buffer is full.")));
+	}
     }
 
     void addConfig(Local<Array> names) {
@@ -201,8 +218,13 @@ printf("connect\n");
     void clearConfig() {
 
 	configFiles_->Set(String::New("length"), Number::New(0));
-	lirc_freeconfig(lirc_config_);
-	lirc_config_ = NULL;
+
+	for (int i=0; i < MAX_CONFIGS; i++) {
+		if (lirc_config_[i] != NULL) {
+			lirc_freeconfig(lirc_config_[i]);
+			lirc_config_[i] = NULL;
+		}
+	}
     }
 
   protected:
@@ -358,8 +380,8 @@ printf("connect\n");
 	HandleScope scope;
 
 	const char *mode_ = NULL;
-	if (lc->lirc_config_ != NULL) {
-		lirc_getmode(lc->lirc_config_);
+	if (lc->lirc_config_[0] != NULL) {
+		lirc_getmode(lc->lirc_config_[0]);
 	}
 
 	if (mode_ == NULL) {
@@ -383,8 +405,8 @@ printf("connect\n");
 
 	char * writable = string2char(value->ToString());
 
-	if (lc->lirc_config_ != NULL) {
-		lirc_setmode(lc->lirc_config_, writable);
+	if (lc->lirc_config_[0] != NULL) {
+		lirc_setmode(lc->lirc_config_[0], writable);
 	}
 	else {
 		ThrowException(Exception::TypeError(String::New("Cannot set mode on empty config")));
@@ -406,7 +428,7 @@ printf("connect\n");
     private:
 	bool start_r_poll;
 	uv_poll_t* read_watcher_;
-	struct lirc_config *lirc_config_;
+	struct lirc_config *lirc_config_[MAX_CONFIGS];
 	bool closed;
 	v8::Persistent<v8::Array> configFiles_;
 
@@ -426,7 +448,6 @@ printf("connect\n");
 			int result = lirc_nextcode(&code);
 			if (result == 0) {
 				if (code != NULL) {
-printf("code1: %s\n", code);
 					Handle<Value> emit_argv[2] = {
 						rawdata_symbol,
 						String::New(code, strlen(code))
@@ -436,17 +457,18 @@ printf("code1: %s\n", code);
 					if (try_catch.HasCaught())
 						FatalException(try_catch);
 
-					if (tmpClient->lirc_config_ != NULL) {
-						while (((ret=lirc_code2char(tmpClient->lirc_config_,code,&c)) == 0) && (c != NULL)) {
-							Handle<Value> emit_argv[2] = {
-								data_symbol,
-								String::New(c, strlen(c))
-							};
-							TryCatch try_catch;
-							tmpClient->Emit->Call(tmpClient->handle_, 2, emit_argv);
-							if (try_catch.HasCaught())
-								FatalException(try_catch);
-	printf("code2: %s\n", code);
+					for (int i=0; i<MAX_CONFIGS; i++) {
+						if (tmpClient->lirc_config_[i] != NULL) {
+							while (((ret=lirc_code2char(tmpClient->lirc_config_[i],code,&c)) == 0) && (c != NULL)) {
+								Handle<Value> emit_argv[2] = {
+									data_symbol,
+									String::New(c, strlen(c))
+								};
+								TryCatch try_catch;
+								tmpClient->Emit->Call(tmpClient->handle_, 2, emit_argv);
+								if (try_catch.HasCaught())
+									FatalException(try_catch);
+							}
 						}
 					}
 
