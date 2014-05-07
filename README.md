@@ -52,9 +52,9 @@ Module Functions
 ---------------- 
 
 * **client**([< _String_ >programName], [< _Boolean_ >verbose], [< _Array_ >configFiles]) - Should be called with new to create new lirc_client object.
-  * < _String_ >**programName** - Is the program name used to select right button in lircrc config files. Will be matched by lirc against the "prog" attribute. [.lircrc file format](http://www.lirc.org/html/configure.html#lircrc_format)
+  * < _String_ >**programName** - Is the program name used to select right button in lircrc config files. Will be matched by lirc against the "prog" attribute. ([.lircrc file format](http://www.lirc.org/html/configure.html#lircrc_format))
   * < _Boolean_ >**verbose** - Will put the lirc library in verbose mode or not.
-  * < _Array_ >**configFiles** - Specify zero or multiple lircrc files. Is an array of _String_ values. Each string must contain the full or relative path to an existing lircrc file. [.lircrc file format](http://www.lirc.org/html/configure.html#lircrc_format). When undefined or array length is 0 (zero) then the lirc default config files _/etc/lirc/lircrc_ and _~/.lircrc_ will be loaded.
+  * < _Array_ >**configFiles** - Specify zero or multiple lircrc files. Is an array of _String_ values. Each string must contain the full or relative path to an existing lircrc file. ([.lircrc file format](http://www.lirc.org/html/configure.html#lircrc_format)). When undefined or array length is 0 (zero) then the lirc default config files _/etc/lirc/lircrc_ and _~/.lircrc_ will be loaded.
     * programName is required when no other lirc_client object is connected.
     * programName and verbose will be ignored when another lirc_client object is allready connected.
     * Will throw errors when something fails.
