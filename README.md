@@ -64,9 +64,11 @@ Module Functions
 ---------------- 
 
 * **connect**(< _String_ >programName, [< _Boolean_ >verbose], [< _String_ >configFiles], < _Function_ >callback(< _String_ >type, < _String_ >data)) - Should be called to connect to lircd.
+* **connect**(< _String_ >programName, [< _Boolean_ >verbose], [< _Array_ >configFiles], < _Function_ >callback(< _String_ >type, < _String_ >data)) - Should be called to connect to lircd.
   * < _String_ >**programName** - Is the program name used to select right button in lircrc config files. Will be matched by lirc against the "prog" attribute. ([.lircrc file format](http://www.lirc.org/html/configure.html#lircrc_format))
   * < _Boolean_ >**verbose** - Will put the lirc library in verbose mode or not.
   * < _String_ >**configFiles** - Specify full or relative path to an existing lircrc file. ([.lircrc file format](http://www.lirc.org/html/configure.html#lircrc_format)). When undefined then the lirc default config files _/etc/lirc/lircrc_ and _~/.lircrc_ will be loaded.
+  * < _Array_ >**configFiles** - Array of < _String_ > values. Each strings is a full or relative path to an existing lircrc file. ([.lircrc file format](http://www.lirc.org/html/configure.html#lircrc_format)). When undefined then the lirc default config files _/etc/lirc/lircrc_ and _~/.lircrc_ will be loaded.
   * < _Function_ >**callback(type, data)** - Callback function which gets called when data is available or connection to lircd was closed outside of our control.
     * < _String_ >**type** - Specifies why the callback function was called. Following values are possible:
       * "rawdata" - Means data argument contains raw data from lircd.conf file. 

@@ -65,61 +65,47 @@ void connect(Handle<String> programname, Handle<Boolean> verbose, Handle<String>
 
 void connect(Handle<String> programname, Handle<Boolean> verbose, Handle<Array> configfiles, Handle<Function> cb) {
 
-printf("0a init\n"); fflush(NULL);
 	if (!closed) return;
 
-printf("0b init\n"); fflush(NULL);
 	closed = true;
 
-printf("0c init\n"); fflush(NULL);
 	gProgramName = Persistent<String>::New( programname );
-printf("0d init\n"); fflush(NULL);
 	gVerbose = Persistent<Boolean>::New( verbose );
 
-printf("0e init\n"); fflush(NULL);
 	for (int i=0; i < MAX_CONFIGS; i++) {
 		my_lirc_config[i].lirc_config_ = NULL;
 	}
 
-printf("1 init\n"); fflush(NULL);
 	if (lircd_fd == -1) {
 		char * writable = string2char(gProgramName);
 		lircd_fd = lirc_init(writable, verbose->Value() == true ? 1 : 0);
 		delete[] writable;
-		printf("1a lircd_fd:%d\n",lircd_fd);
 	}
 	
-printf("2 init\n");
 	if (lircd_fd < 0) {
 		ThrowException(Exception::Error(String::New("Error on lirc_init.")));
 		return;
 	}
 
-printf("4 init\n");
 	configFiles_ = Persistent<Array>::New( Array::New() );
 	addConfig(configfiles);
 
-printf("5 init\n");
 	if (read_watcher_ == NULL) {
-printf("5a init\n");
 		read_watcher_ = new uv_poll_t;
 		read_watcher_->data = my_lirc_config;
 		// Setup input listener
 		uv_poll_init(uv_default_loop(), read_watcher_, lircd_fd);
-printf("6b init\n");
 		// Start input listener
 		uv_poll_start(read_watcher_, UV_READABLE, io_event);
 	}
 
 	global_cb = Persistent<Function>::New(cb);
 
-printf("7 init\n");
 	closed = false;
 
 }
 
 static void on_handle_close (uv_handle_t *handle) {
-printf("on_handle_close\n");
 	delete handle;
 }
 
@@ -136,10 +122,8 @@ void close() {
 
 	uv_poll_stop(read_watcher_);
 	uv_close((uv_handle_t *)read_watcher_, on_handle_close);
-printf("uv_close\n");
 
 	read_watcher_ = NULL;
-printf("lirc_deinit\n");
 	lirc_deinit();
 	lircd_fd = -1;
 
@@ -243,6 +227,12 @@ static Handle<Value> Connect (const Arguments& args) {
 			}
 			cbindex = i;
 		}
+		else if (args[i]->IsArray()) {
+			if (configindex != -1) {
+				return ThrowException(Exception::TypeError(String::New("Only one Array argument is allowed (Config files).")));
+			}
+			configindex = i;
+		}
 	}
 
 	if (prognameindex == -1) {
@@ -265,7 +255,15 @@ static Handle<Value> Connect (const Arguments& args) {
 		return ThrowException(Exception::TypeError(String::New("Order of arguments is wrong. program name must be before verbose.")));
 	}
 
-	connect( args[prognameindex]->ToString(), verboseindex > -1 ? args[verboseindex]->ToBoolean() : Boolean::New(false), configindex > -1 ? args[configindex]->ToString() : String::New(""), Local<Function>::Cast(args[cbindex]));
+	if (configindex == -1) {
+		connect( args[prognameindex]->ToString(), verboseindex > -1 ? args[verboseindex]->ToBoolean() : Boolean::New(false), String::New(""), Local<Function>::Cast(args[cbindex]));
+	}
+	else if (args[configindex]->IsArray()) {
+		connect( args[prognameindex]->ToString(), verboseindex > -1 ? args[verboseindex]->ToBoolean() : Boolean::New(false), Local<Array>::Cast(args[configindex]), Local<Function>::Cast(args[cbindex]));
+	}
+	else if (args[configindex]->IsString()) {
+		connect( args[prognameindex]->ToString(), verboseindex > -1 ? args[verboseindex]->ToBoolean() : Boolean::New(false), args[configindex]->ToString(), Local<Function>::Cast(args[cbindex]));
+	}
 
 	return Undefined();
 }
@@ -282,7 +280,6 @@ static Handle<Value> ReConnect (const Arguments& args) {
 	for (int i = 0; i < length; i++) {
 		tmpArray->Set(Number::New(i), configFiles_->Get(i));
 	}
-printf("hiero1\n");
 	connect(gProgramName, gVerbose, tmpArray, global_cb);
 
 	return Undefined();
