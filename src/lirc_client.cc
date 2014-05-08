@@ -408,16 +408,15 @@ static void io_event (uv_poll_t* req, int status, int revents) {
 
 				for (int i=0; i<MAX_CONFIGS; i++) {
 					if (my_lirc_config[i].lirc_config_ != NULL) {
-	printf("2. Trying config '%d'.\n", i);
 						while (((ret=lirc_code2char(my_lirc_config[i].lirc_config_,code,&c)) == 0) && (c != NULL)) {
 							// Send data event.
-	printf("3. Trying config '%d'.\n", i);
-							Handle<Value> emit_argv[2] = {
+							Handle<Value> emit_argv[3] = {
 								data_symbol,
-								String::New(c, strlen(c))
+								String::New(c, strlen(c)),
+								configFiles_->Get(i)
 							};
 							TryCatch try_catch;
-							global_cb->Call(Context::GetCurrent()->Global(), 2, emit_argv);
+							global_cb->Call(Context::GetCurrent()->Global(), 3, emit_argv);
 							if (try_catch.HasCaught())
 								FatalException(try_catch);
 						}
