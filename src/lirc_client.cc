@@ -40,7 +40,7 @@ static bool closed = true;
 static Persistent<Array> configFiles_;
 
 
-char *string2char(const Local<String> avalue) {
+char *string2char(const Handle<String> avalue) {
 
 	v8::String::Utf8Value utf8_value(avalue);
 
@@ -72,9 +72,9 @@ printf("0b init\n"); fflush(NULL);
 	closed = true;
 
 printf("0c init\n"); fflush(NULL);
-	gProgramName = programname;
+	gProgramName = Persistent<String>::New( programname );
 printf("0d init\n"); fflush(NULL);
-	gVerbose = verbose;
+	gVerbose = Persistent<Boolean>::New( verbose );
 
 printf("0e init\n"); fflush(NULL);
 	for (int i=0; i < MAX_CONFIGS; i++) {
