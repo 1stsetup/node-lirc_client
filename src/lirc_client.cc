@@ -26,8 +26,8 @@ static Persistent<String> configFiles_symbol;
 static Persistent<Function> global_cb;
 
 static int lircd_fd = -1;
-static Local<String> gProgramName;
-static Handle<Boolean> gVerbose;
+static Persistent<String> gProgramName;
+static Persistent<Boolean> gVerbose;
 
 static uv_poll_t *read_watcher_ = NULL;
 
@@ -72,7 +72,7 @@ printf("0b init\n"); fflush(NULL);
 	closed = true;
 
 printf("0c init\n"); fflush(NULL);
-	gProgramName = String::Concat(programname, String::New(""));
+	gProgramName = programname;
 printf("0d init\n"); fflush(NULL);
 	gVerbose = verbose;
 
