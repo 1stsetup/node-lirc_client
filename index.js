@@ -1,6 +1,3 @@
-var EventEmitter = require('events').EventEmitter,
-    addon = require('./build/Release/lirc_client');
-
-addon.client.prototype.__proto__ = EventEmitter.prototype;
+addon = require('./build/Release/lirc_client');
 
 module.exports = addon;

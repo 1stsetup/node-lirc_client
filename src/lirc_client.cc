@@ -15,9 +15,7 @@ using namespace node;
 // Was used as an example for this source
 
 #define MAX_CONFIGS 20
-#define MAX_CONNECTED_CLIENTS 20
 
-static Persistent<FunctionTemplate> Lirc_client_constructor;
 static Persistent<String> emit_symbol;
 static Persistent<String> data_symbol;
 static Persistent<String> rawdata_symbol;
@@ -25,21 +23,22 @@ static Persistent<String> closed_symbol;
 static Persistent<String> isConnected_symbol;
 static Persistent<String> mode_symbol;
 static Persistent<String> configFiles_symbol;
+static Persistent<Function> global_cb;
 
 static int lircd_fd = -1;
-static int lircd_conn_count = 0;
 static Local<String> gProgramName;
 static Handle<Boolean> gVerbose;
 
-static uv_poll_t *read_watcher_;
+static uv_poll_t *read_watcher_ = NULL;
 
 struct Tlirc_config {
 	struct lirc_config *lirc_config_;
 };
 
-class Lirc_client;
+static Tlirc_config *my_lirc_config = new Tlirc_config[MAX_CONFIGS];
+static bool closed = true;
+static Persistent<Array> configFiles_;
 
-static Lirc_client *connectedClients[MAX_CONNECTED_CLIENTS]; 
 
 char *string2char(const Local<String> avalue) {
 
@@ -54,52 +53,37 @@ char *string2char(const Local<String> avalue) {
 }
 
 static void io_event (uv_poll_t* req, int status, int revents);
+void addConfig(Local<String> name);
+void addConfig(Handle<Array> name);
+void connect(Handle<String> programname, Handle<Boolean> verbose, Handle<Array> configfiles, Handle<Function> cb);
 
-class Lirc_client : public ObjectWrap {
-  public:
-    Persistent<Function> Emit;
-    static void Initialize (Handle<Object> target) {
-      HandleScope scope;
+void connect(Handle<String> programname, Handle<Boolean> verbose, Handle<String> configfiles, Handle<Function> cb) {
+	Local<Array> tmpArray = Array::New(1);
+	tmpArray->Set(Number::New(0), configfiles);
+	connect(programname, verbose, tmpArray, cb);
+}
 
-      Local<FunctionTemplate> tpl = FunctionTemplate::New(New);
-      Local<String> name = String::NewSymbol("client");
+void connect(Handle<String> programname, Handle<Boolean> verbose, Handle<Array> configfiles, Handle<Function> cb) {
 
-      Lirc_client_constructor = Persistent<FunctionTemplate>::New(tpl);
-      Lirc_client_constructor->InstanceTemplate()->SetInternalFieldCount(1);
-      Lirc_client_constructor->SetClassName(name);
+printf("0a init\n"); fflush(NULL);
+	if (!closed) return;
 
-      emit_symbol = NODE_PSYMBOL("emit");
-      rawdata_symbol = NODE_PSYMBOL("rawdata");
-      data_symbol = NODE_PSYMBOL("data");
-      closed_symbol = NODE_PSYMBOL("closed");
-
-      isConnected_symbol = NODE_PSYMBOL("isConnected");
-      mode_symbol = NODE_PSYMBOL("mode");
-      configFiles_symbol = NODE_PSYMBOL("configFiles");
-
-      NODE_SET_PROTOTYPE_METHOD(Lirc_client_constructor, "close", Close);
-      NODE_SET_PROTOTYPE_METHOD(Lirc_client_constructor, "connect", Connect);
-      NODE_SET_PROTOTYPE_METHOD(Lirc_client_constructor, "addConfig", AddConfig);
-      NODE_SET_PROTOTYPE_METHOD(Lirc_client_constructor, "clearConfig", ClearConfig);
-
-      Lirc_client_constructor->PrototypeTemplate()->SetAccessor(isConnected_symbol, IsConnectedGetter);
-      Lirc_client_constructor->PrototypeTemplate()->SetAccessor(mode_symbol, ModeGetter, ModeSetter);
-      Lirc_client_constructor->PrototypeTemplate()->SetAccessor(configFiles_symbol, ConfigFilesGetter);
-
-      target->Set(name, Lirc_client_constructor->GetFunction());
-    }
-
-    void init(Local<String> programname, Handle<Boolean> verbose, Local<Array> configfiles) {
-
+printf("0b init\n"); fflush(NULL);
 	closed = true;
 
+printf("0c init\n"); fflush(NULL);
+	gProgramName = String::Concat(programname, String::New(""));
+printf("0d init\n"); fflush(NULL);
+	gVerbose = verbose;
+
+printf("0e init\n"); fflush(NULL);
 	for (int i=0; i < MAX_CONFIGS; i++) {
 		my_lirc_config[i].lirc_config_ = NULL;
 	}
 
-printf("1 init\n");
+printf("1 init\n"); fflush(NULL);
 	if (lircd_fd == -1) {
-		char * writable = string2char(programname);
+		char * writable = string2char(gProgramName);
 		lircd_fd = lirc_init(writable, verbose->Value() == true ? 1 : 0);
 		delete[] writable;
 		printf("1a lircd_fd:%d\n",lircd_fd);
@@ -111,29 +95,15 @@ printf("2 init\n");
 		return;
 	}
 
-printf("3 init\n");
-	lircd_conn_count++;
-
 printf("4 init\n");
-	if (configfiles->Length() > 0) {
-		// Process each config file..
-		configFiles_ = Persistent<Array>::New( Array::New() );
-		addConfig(configfiles);
-	}
-	else {
-		configFiles_ = Persistent<Array>::New( Array::New() );
-		addConfig(String::New(""));
-/*		if (lirc_readconfig(NULL, &lirc_config_[0], NULL) != 0) {
-			ThrowException(Exception::Error(String::New("Error on lirc_readconfig.")));
-			return;
-		}*/
-	}
+	configFiles_ = Persistent<Array>::New( Array::New() );
+	addConfig(configfiles);
 
 printf("5 init\n");
 	if (read_watcher_ == NULL) {
 printf("5a init\n");
 		read_watcher_ = new uv_poll_t;
-		read_watcher_->data = this;
+		read_watcher_->data = my_lirc_config;
 		// Setup input listener
 		uv_poll_init(uv_default_loop(), read_watcher_, lircd_fd);
 printf("6b init\n");
@@ -141,32 +111,19 @@ printf("6b init\n");
 		uv_poll_start(read_watcher_, UV_READABLE, io_event);
 	}
 
-	int i = 0;
-	while ((i < MAX_CONNECTED_CLIENTS) && (connectedClients[i] != NULL)) {
-		i++;
-	}
-	if (i < MAX_CONNECTED_CLIENTS) {
-		connectedClients[i] = this;
-	}
-	else {
-		ThrowException(Exception::Error(String::New("To many connected clients.")));
-	}
+	global_cb = Persistent<Function>::New(cb);
 
 printf("7 init\n");
 	closed = false;
 
-    }
+}
 
-    static void on_handle_close (uv_handle_t *handle) {
+static void on_handle_close (uv_handle_t *handle) {
 printf("on_handle_close\n");
 	delete handle;
-    }
+}
 
-    void close(bool doUnref) {
-
-	if (doUnref) {
-		Unref();
-	}
+void close() {
 
 	if (closed) return;
 
@@ -177,45 +134,19 @@ printf("on_handle_close\n");
 		my_lirc_config[i].lirc_config_ = NULL;
 	}
 
-	lircd_conn_count--;
-	if (lircd_conn_count == 0) {
-		if (read_watcher_ != NULL) {
-			uv_poll_stop(read_watcher_);
-			uv_close((uv_handle_t *)read_watcher_, on_handle_close);
-	printf("uv_close\n");
-		}
+	uv_poll_stop(read_watcher_);
+	uv_close((uv_handle_t *)read_watcher_, on_handle_close);
+printf("uv_close\n");
 
-		read_watcher_ = NULL;
+	read_watcher_ = NULL;
 printf("lirc_deinit\n");
-		lirc_deinit();
-		lircd_fd = -1;
-	}
-
-	int i = 0;
-	while ((i < MAX_CONNECTED_CLIENTS) && (connectedClients[i] != this)) {
-		i++;
-	}
-	if (i < MAX_CONNECTED_CLIENTS) {
-		connectedClients[i] = NULL;
-	}
+	lirc_deinit();
+	lircd_fd = -1;
 
 	closed = true;
-    }
+}
 
-    void connect() {
-
-	if (!closed) return;
-printf("connect\n");
-
-	int length = configFiles_->Length();
-	Local<Array> tmpArray = Array::New(length);
-	for (int i = 0; i < length; i++) {
-		tmpArray->Set(i, configFiles_->Get(i));
-	}
-	init(gProgramName, gVerbose, tmpArray);
-    }
-
-    void addConfig(Local<String> name) {
+void addConfig(Local<String> name) {
 
 	int i = 0;
 	while ((i < MAX_CONFIGS) && (my_lirc_config[i].lirc_config_ != NULL)) {
@@ -228,7 +159,7 @@ printf("connect\n");
 			writable = string2char(name);
 		}
 
-		if (lirc_readconfig(writable, &my_lirc_config[i].lirc_config_, NULL) != 0) {
+		if (lirc_readconfig(writable, &(my_lirc_config[i].lirc_config_), NULL) != 0) {
 			ThrowException(Exception::Error(String::Concat(String::New("Error on lirc_readconfig for file:"),name)));
 			delete[] writable;
 			return;
@@ -244,9 +175,9 @@ printf("connect\n");
 	else {
 		ThrowException(Exception::Error(String::New("Config buffer is full.")));
 	}
-    }
+}
 
-    void addConfig(Local<Array> names) {
+void addConfig(Handle<Array> names) {
 
 	int length = names->Length();
 	for(int i = 0; i < length; i++) {
@@ -257,9 +188,9 @@ printf("connect\n");
 		Local<Value> configfile = names->Get(i);
 		addConfig(configfile->ToString());
 	}
-    }
+}
 
-    void clearConfig() {
+void clearConfig() {
 
 	configFiles_->Set(String::New("length"), Number::New(0));
 
@@ -269,34 +200,36 @@ printf("connect\n");
 			my_lirc_config[i].lirc_config_ = NULL;
 		}
 	}
-    }
+}
 
-    Tlirc_config *my_lirc_config;
 
-  protected:
-    static Handle<Value> New (const Arguments& args) {
+static Handle<Value> Connect (const Arguments& args) {
 	HandleScope scope;
 
-	if (args.Length() > 3) {
-		return ThrowException(Exception::TypeError(String::New("Only three arguments are allowed.")));
+	if (!closed) {
+		return Undefined();
+	}
+
+	if (args.Length() > 4) {
+		return ThrowException(Exception::TypeError(String::New("Only four arguments are allowed.")));
 	}
 
 	int prognameindex = -1;
 	int verboseindex = -1;
 	int configindex = -1;
+	int cbindex = -1;
 
 	for(int i=0; i < args.Length(); i++) {
-		if (args[i]->IsArray()) {
-			if (configindex != -1) {
-				return ThrowException(Exception::TypeError(String::New("Only one Array argument is allowed (config files).")));
+		if (args[i]->IsString()) {
+			if ((prognameindex != -1) && (configindex != -1)) {
+				return ThrowException(Exception::TypeError(String::New("Only two String argument are allowed (Program name and Config files).")));
 			}
-			configindex = i;
-		}
-		else if ((args[i]->IsString()) && (lircd_fd == -1)) {
-			if (prognameindex != -1) {
-				return ThrowException(Exception::TypeError(String::New("Only one string argument is allowed (progamname).")));
+			if (prognameindex == -1) {
+				prognameindex = i;
 			}
-			prognameindex = i;
+			else {
+				configindex = i;
+			}
 		}
 		else if (args[i]->IsBoolean()) {
 			if (verboseindex != -1) {
@@ -304,10 +237,20 @@ printf("connect\n");
 			}
 			verboseindex = i;
 		}
+		else if (args[i]->IsFunction()) {
+			if (cbindex != -1) {
+				return ThrowException(Exception::TypeError(String::New("Only one Callback Function argument is allowed (cb).")));
+			}
+			cbindex = i;
+		}
 	}
 
-	if ((lircd_fd == -1) && (prognameindex == -1)) {
-		return ThrowException(Exception::Error(String::New("There is no lirc_client object with this.isConnected == true. So programname is required on new.")));
+	if (prognameindex == -1) {
+		return ThrowException(Exception::Error(String::New("Programname is required.")));
+	}
+
+	if (cbindex == -1) {
+		return ThrowException(Exception::Error(String::New("Callback function is required.")));
 	}
 
 	if ((configindex > -1) && (configindex < verboseindex)) {
@@ -322,52 +265,38 @@ printf("connect\n");
 		return ThrowException(Exception::TypeError(String::New("Order of arguments is wrong. program name must be before verbose.")));
 	}
 
-	Lirc_client *lc = NULL;
+	connect( args[prognameindex]->ToString(), verboseindex > -1 ? args[verboseindex]->ToBoolean() : Boolean::New(false), configindex > -1 ? args[configindex]->ToString() : String::New(""), Local<Function>::Cast(args[cbindex]));
 
-	if (prognameindex > -1) {
-		gProgramName = args[prognameindex]->ToString();
-	}
-	if ((verboseindex > -1) && (lircd_fd == -1)) {
-		gVerbose = args[verboseindex]->ToBoolean();
-	}
+	return Undefined();
+}
 
-	lc = new Lirc_client(prognameindex > -1 ? args[prognameindex]->ToString() : String::New(""), verboseindex > -1 ? args[verboseindex]->ToBoolean() : Boolean::New(false), configindex > -1 ? Local<Array>::Cast(args[configindex]) : v8::Array::New());
+static Handle<Value> ReConnect (const Arguments& args) {
+	HandleScope scope;
 
-	if (lc != NULL) {
-		lc->Wrap(args.This());
-		lc->Ref();
-
-		lc->Emit = Persistent<Function>::New(
-			    Local<Function>::Cast(lc->handle_->Get(emit_symbol))
-			  );
-	}
-	else {
-		return ThrowException(Exception::Error(String::New("could not create new lirc_client object.")));
+	if (!closed) {
+		return Undefined();
 	}
 
-	return args.This();
-    }
+	int length = configFiles_->Length();
+	Local<Array> tmpArray = Array::New(length);
+	for (int i = 0; i < length; i++) {
+		tmpArray->Set(Number::New(i), configFiles_->Get(i));
+	}
+printf("hiero1\n");
+	connect(gProgramName, gVerbose, tmpArray, global_cb);
 
-    static Handle<Value> Close (const Arguments& args) {
-      Lirc_client *lc = ObjectWrap::Unwrap<Lirc_client>(args.This());
+	return Undefined();
+}
+
+static Handle<Value> Close (const Arguments& args) {
       HandleScope scope;
 
-      lc->close(false);
+      close();
 
       return Undefined();
-    }
+}
 
-    static Handle<Value> Connect (const Arguments& args) {
-      Lirc_client *lc = ObjectWrap::Unwrap<Lirc_client>(args.This());
-      HandleScope scope;
-
-      lc->connect();
-
-      return Undefined();
-    }
-
-    static Handle<Value> AddConfig (const Arguments& args) {
-	Lirc_client *lc = ObjectWrap::Unwrap<Lirc_client>(args.This());
+static Handle<Value> AddConfig (const Arguments& args) {
 	HandleScope scope;
 
 	if (args.Length() != 1) {
@@ -375,64 +304,44 @@ printf("connect\n");
 	}
 
 	if (args[0]->IsArray()) {
-		lc->addConfig(Local<Array>::Cast(args[0]));
+		addConfig(Local<Array>::Cast(args[0]));
 	}
 	else if (args[0]->IsString()) {
-		lc->addConfig(args[0]->ToString());
+		addConfig(args[0]->ToString());
 	}
 	else {
 		return ThrowException(Exception::TypeError(String::New("Only an Array or a String argument is allowed.")));
 	}
 
 	return Undefined();
-    }
+}
 
-    static Handle<Value> ClearConfig (const Arguments& args) {
-	Lirc_client *lc = ObjectWrap::Unwrap<Lirc_client>(args.This());
+static Handle<Value> ClearConfig (const Arguments& args) {
 	HandleScope scope;
 
-	lc->clearConfig();
+	clearConfig();
 
 	return Undefined();
-    }
+}
 
-    Lirc_client(Local<String> programname, Handle<Boolean> verbose, Local<Array> configfiles) : ObjectWrap() {
-
-	this->my_lirc_config = new Tlirc_config[MAX_CONFIGS];
-
-	this->init(programname, verbose, configfiles);
-    }
-
-    ~Lirc_client() {
-	Emit.Dispose();
-	Emit.Clear();
-	close(true);
-
-	delete this->my_lirc_config;
-    }
-
-    static Handle<Value> IsConnectedGetter (Local<String> property,
+static Handle<Value> IsConnectedGetter (Local<String> property,
                                             const AccessorInfo& info) {
-	Lirc_client *lc = ObjectWrap::Unwrap<Lirc_client>(info.This());
-	assert(lc);
 	assert(property == isConnected_symbol);
 
 	HandleScope scope;
 
-	return scope.Close(Boolean::New(!lc->closed));
-    }
+	return scope.Close(Boolean::New(!closed));
+}
 
-    static Handle<Value> ModeGetter (Local<String> property,
+static Handle<Value> ModeGetter (Local<String> property,
                                             const AccessorInfo& info) {
-	Lirc_client *lc = ObjectWrap::Unwrap<Lirc_client>(info.This());
-	assert(lc);
 	assert(property == mode_symbol);
 
 	HandleScope scope;
 
 	const char *mode_ = NULL;
-	if (lc->my_lirc_config[0].lirc_config_ != NULL) {
-		lirc_getmode(lc->my_lirc_config[0].lirc_config_);
+	if (my_lirc_config[0].lirc_config_ != NULL) {
+		lirc_getmode(my_lirc_config[0].lirc_config_);
 	}
 
 	if (mode_ == NULL) {
@@ -441,13 +350,13 @@ printf("connect\n");
 	else {
 		return scope.Close(String::New(mode_, strlen(mode_)));
 	}
-    }
+}
 
-    static void ModeSetter (Local<String> property, Local<Value> value,
+static void ModeSetter (Local<String> property, Local<Value> value,
                                             const AccessorInfo& info) {
-	Lirc_client *lc = ObjectWrap::Unwrap<Lirc_client>(info.This());
-	assert(lc);
 	assert(property == mode_symbol);
+
+	HandleScope scope;
 
 	if (!value->IsString()) {
 		ThrowException(Exception::TypeError(String::New("Mode should be a string value")));
@@ -456,31 +365,24 @@ printf("connect\n");
 
 	char * writable = string2char(value->ToString());
 
-	if (lc->my_lirc_config[0].lirc_config_ != NULL) {
-		lirc_setmode(lc->my_lirc_config[0].lirc_config_, writable);
+	if (my_lirc_config[0].lirc_config_ != NULL) {
+		lirc_setmode(my_lirc_config[0].lirc_config_, writable);
 	}
 	else {
 		ThrowException(Exception::TypeError(String::New("Cannot set mode on empty config")));
 	}
 	delete[] writable;
-    }
+}
 
-    static Handle<Value> ConfigFilesGetter (Local<String> property,
+static Handle<Value> ConfigFilesGetter (Local<String> property,
                                             const AccessorInfo& info) {
-	Lirc_client *lc = ObjectWrap::Unwrap<Lirc_client>(info.This());
-	assert(lc);
 	assert(property == configFiles_symbol);
 
 	HandleScope scope;
 
-	return scope.Close(lc->configFiles_);
-    }
+	return scope.Close(configFiles_);
+}
 
-    private:
-	bool closed;
-	v8::Persistent<v8::Array> configFiles_;
-
-};
 
 static void io_event (uv_poll_t* req, int status, int revents) {
 	HandleScope scope;
@@ -497,35 +399,30 @@ static void io_event (uv_poll_t* req, int status, int revents) {
 		if (result == 0) {
 			if (code != NULL) {
 
-				for (int ccount=0; ccount < MAX_CONNECTED_CLIENTS; ccount++) {
+				// Send rawdata event
+				Handle<Value> emit_argv[2] = {
+					rawdata_symbol,
+					String::New(code, strlen(code))
+				};
+				TryCatch try_catch;
+				global_cb->Call(Context::GetCurrent()->Global(), 2, emit_argv);
+				if (try_catch.HasCaught())
+					FatalException(try_catch);
 
-					if (connectedClients[ccount] != NULL) {
-						// Send rawdata event
-						Handle<Value> emit_argv[2] = {
-							rawdata_symbol,
-							String::New(code, strlen(code))
-						};
-						TryCatch try_catch;
-						connectedClients[ccount]->Emit->Call(connectedClients[ccount]->handle_, 2, emit_argv);
-						if (try_catch.HasCaught())
-							FatalException(try_catch);
-
-						for (int i=0; i<MAX_CONFIGS; i++) {
-							if (connectedClients[ccount]->my_lirc_config[i].lirc_config_ != NULL) {
-printf("2. Trying config '%d' of client '%d'.\n", i, ccount);
-								while (((ret=lirc_code2char(connectedClients[ccount]->my_lirc_config[i].lirc_config_,code,&c)) == 0) && (c != NULL)) {
-									// Send data event.
-printf("3. Trying config '%d' of client '%d'.\n", i, ccount);
-									Handle<Value> emit_argv[2] = {
-										data_symbol,
-										String::New(c, strlen(c))
-									};
-									TryCatch try_catch;
-									connectedClients[ccount]->Emit->Call(connectedClients[ccount]->handle_, 2, emit_argv);
-									if (try_catch.HasCaught())
-										FatalException(try_catch);
-								}
-							}
+				for (int i=0; i<MAX_CONFIGS; i++) {
+					if (my_lirc_config[i].lirc_config_ != NULL) {
+	printf("2. Trying config '%d'.\n", i);
+						while (((ret=lirc_code2char(my_lirc_config[i].lirc_config_,code,&c)) == 0) && (c != NULL)) {
+							// Send data event.
+	printf("3. Trying config '%d'.\n", i);
+							Handle<Value> emit_argv[2] = {
+								data_symbol,
+								String::New(c, strlen(c))
+							};
+							TryCatch try_catch;
+							global_cb->Call(Context::GetCurrent()->Global(), 2, emit_argv);
+							if (try_catch.HasCaught())
+								FatalException(try_catch);
 						}
 					}
 				}
@@ -535,17 +432,15 @@ printf("3. Trying config '%d' of client '%d'.\n", i, ccount);
 		}
 		else {
 			// Connection lircd got closed. Emit event.
-			for (int ccount=0; ccount < MAX_CONNECTED_CLIENTS; ccount++) {
-				// Send closed event
-				connectedClients[ccount]->close(false);
-				Handle<Value> emit_argv[1] = {
-					closed_symbol
-				};
-				TryCatch try_catch;
-				connectedClients[ccount]->Emit->Call(connectedClients[ccount]->handle_, 1, emit_argv);
-				if (try_catch.HasCaught())
-					FatalException(try_catch);
-			}
+			// Send closed event
+			close();
+			Handle<Value> emit_argv[1] = {
+				closed_symbol
+			};
+			TryCatch try_catch;
+			global_cb->Call(Context::GetCurrent()->Global(), 1, emit_argv);
+			if (try_catch.HasCaught())
+				FatalException(try_catch);
 		}
 	}
 }
@@ -555,12 +450,26 @@ extern "C" {
   void init (Handle<Object> target) {
 	HandleScope scope;
 
-	for(int i = 0; i < MAX_CONNECTED_CLIENTS; i++) {
-		connectedClients[i] = NULL;
-	}
 	read_watcher_ = NULL;
 
-	Lirc_client::Initialize(target);
+	emit_symbol = NODE_PSYMBOL("emit");
+	rawdata_symbol = NODE_PSYMBOL("rawdata");
+	data_symbol = NODE_PSYMBOL("data");
+	closed_symbol = NODE_PSYMBOL("closed");
+
+	isConnected_symbol = NODE_PSYMBOL("isConnected");
+	mode_symbol = NODE_PSYMBOL("mode");
+	configFiles_symbol = NODE_PSYMBOL("configFiles");
+
+	target->Set(String::NewSymbol("close"), FunctionTemplate::New(Close)->GetFunction());
+	target->Set(String::NewSymbol("connect"), FunctionTemplate::New(Connect)->GetFunction());
+	target->Set(String::NewSymbol("reConnect"), FunctionTemplate::New(ReConnect)->GetFunction());
+	target->Set(String::NewSymbol("addConfig"), FunctionTemplate::New(AddConfig)->GetFunction());
+	target->Set(String::NewSymbol("clearConfig"), FunctionTemplate::New(ClearConfig)->GetFunction());
+
+	target->SetAccessor(isConnected_symbol, IsConnectedGetter);
+	target->SetAccessor(mode_symbol, ModeGetter, ModeSetter);
+	target->SetAccessor(configFiles_symbol, ConfigFilesGetter);
   }
 
   NODE_MODULE(lirc_client, init);

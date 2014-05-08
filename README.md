@@ -28,23 +28,31 @@ Example
 var lirc_client = require('lirc_client');
 
 try {
-	var client = new lirc_client.client("clienttest", true);
-	client.on("data", function(data) {
-		console.log("Received data from lirc:",data);
-		client.close();
+	lirc_client.connect("testone", true, "test1.lircrc",function(type, data){
+		console.log("Type:", type);
+		console.log("Data:", data);
+		switch (type) {
+			case "rawdata":
+				console.log("Rawdata received:",data);
+				break;
+			case "data":
+				console.log("Data received:",data);
+				break;
+			case "closed":
+				console.log("Lircd closed connection to us.");
+				break;
+		}
 	});
-	client.on("rawdata", function(data) {
-		console.log("Received rawdata from lirc:",data);
-		client.close();
-	});
-	client.on("closed", function() {
-		console.log("Lirc daemon closed our connection. We need to reconnect.");
-	});
-	console.log("client.isConnected:", client.isConnected);
-	console.log("client.mode:", client.mode);
+
+	console.log("lirc_client.isConnected:", lirc_client.isConnected);
+	console.log("lirc_client.mode:", lirc_client.mode);
+	console.log("lirc_client.configFiles:", lirc_client.configFiles);
+
+	console.close();
+	console.log("lirc_client.isConnected:", lirc_client.isConnected);
 }
 catch (err) {
-	console.log("Error on new client:",err);
+	console.log("Error on connect:",err);
 }
 ```
 See examples folder for more detailed example.
@@ -55,17 +63,20 @@ API Documentation
 Module Functions
 ---------------- 
 
-* **client**([< _String_ >programName], [< _Boolean_ >verbose], [< _Array_ >configFiles]) - Should be called with new to create new lirc_client object.
+* **connect**(< _String_ >programName, [< _Boolean_ >verbose], [< _String_ >configFiles], < _Function_ >callback(< _String_ >type, < _String_ >data)) - Should be called to connect to lircd.
   * < _String_ >**programName** - Is the program name used to select right button in lircrc config files. Will be matched by lirc against the "prog" attribute. ([.lircrc file format](http://www.lirc.org/html/configure.html#lircrc_format))
   * < _Boolean_ >**verbose** - Will put the lirc library in verbose mode or not.
-  * < _Array_ >**configFiles** - Specify zero or multiple lircrc files. Is an array of _String_ values. Each string must contain the full or relative path to an existing lircrc file. ([.lircrc file format](http://www.lirc.org/html/configure.html#lircrc_format)). When undefined or array length is 0 (zero) then the lirc default config files _/etc/lirc/lircrc_ and _~/.lircrc_ will be loaded.
-    * programName is required when no other lirc_client object is connected.
-    * programName and verbose will be ignored when another lirc_client object is allready connected.
+  * < _String_ >**configFiles** - Specify full or relative path to an existing lircrc file. ([.lircrc file format](http://www.lirc.org/html/configure.html#lircrc_format)). When undefined then the lirc default config files _/etc/lirc/lircrc_ and _~/.lircrc_ will be loaded.
+  * < _Function_ >**callback(type, data)** - Callback function which gets called when data is available or connection to lircd was closed outside of our control.
+    * < _String_ >**type** - Specifies why the callback function was called. Following values are possible:
+      * "rawdata" - Means data argument contains raw data from lircd.conf file. 
+      * "data" - Means data argument contains config attribute from lircrc button which matches received ir button and prog attribute from lirrc file(s). 
+      * "closed" - Means connection to lircd was closed outside of our control. 
     * Will throw errors when something fails.
 
 * **close**() - Closes the connection to lircd for this object.
 
-* **connect**() - Reconnects a closed connection to the lircd for this object. It will reuse the active programName and verbose values.
+* **reConnect**() - Reconnects a closed connection to the lircd for this object. It will reuse arguments from connect call.
   * Will throw errors when something fails.
 
 * **addConfig**(< _String_ >configFile | < _Array_ >configFiles) - Add one or more lircrc config files.
@@ -82,15 +93,5 @@ Module properties
 * < _String_ >**mode** (read/write) - Will perform lirc_getmode and lirc_setmode. Are not described on lirc website but were found in lirc_client.h file and on following [page](http://lirc.10951.n7.nabble.com/Patch-control-lirc-mode-from-external-program-td1611.html)
 
 * < _Array_ >**configFiles** (read only) - Will contain a list with config filenames currently active. When array is empty the lirc default lircrc config files are used.
-
-Module Events
--------------
-
-* **rawdata**(< _String_ > data) - Event is emited when there is data available on the lircd connection. The first argument to the callback function will contain the raw lirc data for the button pressed. (code from lirc_client function "int lirc_nextcode(char **code);")
-
-* **data**(< _String_ > data) - Event is emited when there is data available on the lircd connection and at least one config is loaded. The first argument to the callback function will contain the config string from lircrc file for the button pressed and the specified programname when client was created. (string from lirc_client function "int lirc_code2char(struct lirc_config *config,char *code,char **string);")
-
-* **closed**() - Event is emited when lircd has closed our connection. 
-
 
 
