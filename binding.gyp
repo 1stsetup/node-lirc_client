@@ -1,8 +1,20 @@
 {
   "targets": [
     {
+      "variables": {
+        "node_version": '"<!(node -e "console.log(process.versions.node)")',
+      },
       "target_name": "lirc_client",
-      "sources": [ "src/lirc_client.cc" ],
+      "conditions": [
+	['node_version=="0.10.0"', {
+		"sources": [ "src/lirc_client-node-0.10.cc" ],
+		} ],
+	['node_version=="4.4.3"', {
+		"sources": [ "src/lirc_client-node-4.4.cc" ],
+		} ],
+	
+      ],
+      "sources": [ "src/lirc_client-node-0.10.cc" ],
       "ldflags": [
         "-llirc_client"
       ],
